@@ -38,13 +38,20 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
   const [docNumber, setDocNumber] = useState("042/PAN-TRANS/X/2026");
   const [attachment, setAttachment] = useState("1 (Satu) Berkas");
   const [subject, setSubject] = useState("Permohonan Pencairan Anggaran Workshop Transformasi Digital");
-  const [dateStr, setDateStr] = useState<string>(() => {
-    return new Date().toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  });
+  const [dateStr, setDateStr] = useState<string>("27 Oktober 2026");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDateStr(
+        new Date().toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      );
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [city, setCity] = useState("Jakarta");
 
   const [recipientName, setRecipientName] = useState("Kepala Bagian Keuangan & Perencanaan");
@@ -667,7 +674,7 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
             <div
               className={`mx-auto ${
                 paperSize === "F4" ? "paper-sheet-f4" : "paper-sheet-a4"
-              } rounded-lg border border-slate-200 p-6 sm:p-10 md:p-12 text-slate-900 font-document transition-all min-w-[500px]`}
+              } rounded-lg border border-slate-200 p-6 sm:p-10 md:p-12 text-slate-900 font-document transition-all min-w-125`}
             >
               {/* 1. KOP SURAT PREVIEW */}
               {showKop && (

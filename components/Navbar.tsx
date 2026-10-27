@@ -153,7 +153,7 @@ export function Navbar({
             {/* User Profile */}
             {currentUser ? (
               <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-slate-200">
-                <div className="text-right hidden sm:block max-w-[140px] truncate">
+                <div className="text-right hidden sm:block max-w-35 truncate">
                   <div className="text-xs font-semibold text-slate-900 leading-tight truncate">
                     {currentUser.name}
                   </div>

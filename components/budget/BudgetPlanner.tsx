@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
 
 export interface BudgetItemData {
@@ -92,7 +94,12 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { showToast } = useToast();
+  const { showToast, showDeleteToast } = useToast();
+
+  // Delete dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<BudgetItemData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load activities list for dropdown
   useEffect(() => {
@@ -262,16 +269,28 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
     }
   };
 
-  const handleDeleteItem = async (id: number) => {
-    if (!confirm("Hapus baris item anggaran ini?")) return;
+  const requestDeleteItem = (item: BudgetItemData) => {
+    setItemToDelete(item);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/budget/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/budget/${itemToDelete.id}`, { method: "DELETE" });
       if (res.ok) {
-        showToast("Berhasil", "Item dihapus dari anggaran", "info");
+        showDeleteToast(itemToDelete.itemName);
         if (selectedActivityId) fetchBudget(selectedActivityId);
+      } else {
+        showToast("Gagal", "Gagal menghapus item dari anggaran", "error");
       }
     } catch {
-      showToast("Error", "Gagal menghapus item", "error");
+      showToast("Error", "Gagal menghapus item anggaran", "error");
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -334,83 +353,93 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
 
       {/* SUMMARY BAR (Real-Time Calculation without page reload) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-        {/* Total Estimasi (Pagu) */}
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Estimasi (Pagu)
-            </span>
-            <span className="p-1.5 sm:p-2 rounded-lg bg-blue-50 text-blue-600">
-              <Calculator className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-            {formatCurrency(summary.totalEstimated)}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Akumulasi estimasi seluruh kebutuhan</p>
-        </div>
+        {loading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : (
+          <>
+            {/* Total Estimasi (Pagu) */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Total Estimasi (Pagu)
+                </span>
+                <span className="p-1.5 sm:p-2 rounded-lg bg-blue-50 text-blue-600">
+                  <Calculator className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                {formatCurrency(summary.totalEstimated)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Akumulasi estimasi seluruh kebutuhan</p>
+            </div>
 
-        {/* Total Realisasi / Aktual */}
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Realisasi (Aktual)
-            </span>
-            <span className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 text-emerald-600">
-              <DollarSign className="w-4 h-4" />
-            </span>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 tabular-nums">
-            {formatCurrency(summary.totalActual)}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">Pengeluaran aktual yang terverifikasi</p>
-        </div>
+            {/* Total Realisasi / Aktual */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Total Realisasi (Aktual)
+                </span>
+                <span className="p-1.5 sm:p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                  <DollarSign className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 tabular-nums">
+                {formatCurrency(summary.totalActual)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Pengeluaran aktual yang terverifikasi</p>
+            </div>
 
-        {/* Selisih (Surplus / Defisit) */}
-        <div
-          className={`p-4 sm:p-5 rounded-xl border shadow-xs sm:col-span-2 md:col-span-1 ${
-            summary.isDeficit
-              ? "bg-rose-50/50 border-rose-200"
-              : summary.totalActual > 0
-              ? "bg-emerald-50/50 border-emerald-200"
-              : "bg-white border-slate-200"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span
-              className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider ${
-                summary.isDeficit ? "text-rose-700" : "text-slate-500"
-              }`}
-            >
-              {summary.isDeficit ? "Defisit Anggaran" : "Sisa Pagu / Surplus"}
-            </span>
-            <span
-              className={`p-1.5 sm:p-2 rounded-lg ${
+            {/* Selisih (Surplus / Defisit) */}
+            <div
+              className={`p-4 sm:p-5 rounded-xl border shadow-xs sm:col-span-2 md:col-span-1 ${
                 summary.isDeficit
-                  ? "bg-rose-100 text-rose-700"
-                  : "bg-slate-100 text-slate-600"
+                  ? "bg-rose-50/50 border-rose-200"
+                  : summary.totalActual > 0
+                  ? "bg-emerald-50/50 border-emerald-200"
+                  : "bg-white border-slate-200"
               }`}
             >
-              {summary.isDeficit ? (
-                <TrendingDown className="w-4 h-4" />
-              ) : (
-                <TrendingUp className="w-4 h-4" />
-              )}
-            </span>
-          </div>
-          <div
-            className={`text-xl sm:text-2xl font-bold mt-2 tabular-nums ${
-              summary.isDeficit ? "text-rose-700" : "text-emerald-700"
-            }`}
-          >
-            {formatCurrency(Math.abs(summary.variance))}
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">
-            {summary.isDeficit
-              ? "Realisasi melebihi estimasi awal"
-              : "Anggaran dalam batas pagu yang aman"}
-          </p>
-        </div>
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider ${
+                    summary.isDeficit ? "text-rose-700" : "text-slate-500"
+                  }`}
+                >
+                  {summary.isDeficit ? "Defisit Anggaran" : "Sisa Pagu / Surplus"}
+                </span>
+                <span
+                  className={`p-1.5 sm:p-2 rounded-lg ${
+                    summary.isDeficit
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {summary.isDeficit ? (
+                    <TrendingDown className="w-4 h-4" />
+                  ) : (
+                    <TrendingUp className="w-4 h-4" />
+                  )}
+                </span>
+              </div>
+              <div
+                className={`text-xl sm:text-2xl font-bold mt-2 tabular-nums ${
+                  summary.isDeficit ? "text-rose-700" : "text-emerald-700"
+                }`}
+              >
+                {formatCurrency(Math.abs(summary.variance))}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {summary.isDeficit
+                  ? "Realisasi melebihi estimasi awal"
+                  : "Anggaran dalam batas pagu yang aman"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Itemized Budget Table */}
@@ -437,7 +466,28 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-xs">Memuat item RAB...</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs min-w-162.5">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-100/60 text-slate-600 font-semibold">
+                  <th className="py-2.5 px-3 sm:px-4 w-12 text-center">No</th>
+                  <th className="py-2.5 px-3 sm:px-4">Nama Item Pengeluaran</th>
+                  <th className="py-2.5 px-3 text-right">Volume</th>
+                  <th className="py-2.5 px-3 text-center">Satuan</th>
+                  <th className="py-2.5 px-3 sm:px-4 text-right">Harga Satuan (Rp)</th>
+                  <th className="py-2.5 px-3 sm:px-4 text-right">Total Estimasi (Rp)</th>
+                  <th className="py-2.5 px-3 sm:px-4 text-right">Realisasi (Rp)</th>
+                  <th className="py-2.5 px-3 sm:px-4 w-20 text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                <SkeletonRow cols={8} />
+                <SkeletonRow cols={8} />
+                <SkeletonRow cols={8} />
+                <SkeletonRow cols={8} />
+              </tbody>
+            </table>
+          </div>
         ) : budgetItems.length === 0 ? (
           <div className="p-8 sm:p-12 text-center">
             <FolderOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -448,7 +498,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+            <table className="w-full text-left border-collapse text-xs min-w-162.5">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100/60 text-slate-600 font-semibold">
                   <th className="py-2.5 px-3 sm:px-4 w-12 text-center">No</th>
@@ -514,7 +564,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => handleDeleteItem(item.id)}
+                                onClick={() => requestDeleteItem(item)}
                                 className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded"
                                 title="Hapus Item"
                                 aria-label="Hapus Item"
@@ -718,6 +768,24 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         </form>
       </Modal>
+
+      {/* Delete Confirmation Alert Dialog (shadcn/HeroUI style) */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteConfirmOpen(false);
+            setItemToDelete(null);
+          }
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Item Anggaran"
+        description={`Apakah Anda yakin ingin menghapus item "${itemToDelete?.itemName}" senilai ${formatCurrency(itemToDelete?.estimatedSubtotal || 0)}? Data ini akan dihapus dari anggaran kegiatan.`}
+        confirmLabel="Hapus Item"
+        cancelLabel="Batal"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

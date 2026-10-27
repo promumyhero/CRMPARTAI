@@ -181,19 +181,19 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
                   <span className="text-lg font-bold text-slate-900 font-mono">{parseResult.totalRows}</span>
                 </div>
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <span className="text-xs text-emerald-700 block flex items-center gap-1">
+                  <span className="text-xs text-emerald-700 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Valid & Siap
                   </span>
                   <span className="text-lg font-bold text-emerald-700 font-mono">{parseResult.validCount}</span>
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                  <span className="text-xs text-amber-700 block flex items-center gap-1">
+                  <span className="text-xs text-amber-700 flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" /> Ada Peringatan
                   </span>
                   <span className="text-lg font-bold text-amber-700 font-mono">{parseResult.warningCount}</span>
                 </div>
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl">
-                  <span className="text-xs text-rose-700 block flex items-center gap-1">
+                  <span className="text-xs text-rose-700 flex items-center gap-1">
                     <XCircle className="w-3.5 h-3.5" /> Error / Dilewati
                   </span>
                   <span className="text-lg font-bold text-rose-700 font-mono">{parseResult.errorCount}</span>

@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import type { PartyMember } from "@/lib/db/schema";
 import { MemberImportModal } from "./MemberImportModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 interface StatsData {
   totalMembers: number;
@@ -39,7 +42,11 @@ export function MemberDirectory() {
   const [gender, setGender] = useState("");
   const [unmaskSensitive, setUnmaskSensitive] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { showDeleteToast, showToast } = useToast();
+
 
   // Fetch members and stats
   const fetchMembers = useCallback(async () => {
@@ -101,19 +108,24 @@ export function MemberDirectory() {
     return isNaN(age) || age < 0 ? "-" : `${age} thn`;
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus data anggota ini?")) return;
-    setDeletingId(id);
+  const handleConfirmDelete = async () => {
+    if (!targetDeleteMember) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/members/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/members/${targetDeleteMember.id}`, { method: "DELETE" });
       if (res.ok) {
-        setMembers((prev) => prev.filter((m) => m.id !== id));
+        const deletedName = targetDeleteMember.name;
+        showDeleteToast(deletedName);
+        setMembers((prev) => prev.filter((m) => m.id !== targetDeleteMember.id));
+        setTargetDeleteMember(null);
         fetchMembers();
+      } else {
+        showToast("Gagal Menghapus", "Terjadi kesalahan saat menghapus anggota", "error");
       }
-    } catch (err) {
-      console.error("Gagal menghapus:", err);
+    } catch {
+      showToast("Gagal Menghapus", "Tidak dapat terhubung ke server", "error");
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
@@ -134,8 +146,15 @@ export function MemberDirectory() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Header Stats Bar */}
-      {stats && (
+      {/* 1. Header Stats Bar (With Skeleton Loading) */}
+      {loading && !stats ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      ) : stats ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: Total Anggota */}
           <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
@@ -151,6 +170,7 @@ export function MemberDirectory() {
               {stats.totalMale} Laki-laki • {stats.totalFemale} Perempuan
             </p>
           </div>
+
 
           {/* Card 2: Keterwakilan Perempuan (30% KPU Quota) */}
           <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
@@ -209,7 +229,7 @@ export function MemberDirectory() {
             </p>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* 2. Control Bar (Search, Filters, Data Masking & Import Button) */}
       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
@@ -321,11 +341,9 @@ export function MemberDirectory() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && members.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400 italic">
-                    Memuat data direktori kader...
-                  </td>
-                </tr>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <SkeletonRow key={i} cols={8} />
+                ))
               ) : members.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
@@ -405,8 +423,7 @@ export function MemberDirectory() {
                     {/* Aksi */}
                     <td className="py-3 px-4 text-right">
                       <button
-                        onClick={() => handleDelete(m.id)}
-                        disabled={deletingId === m.id}
+                        onClick={() => setTargetDeleteMember(m)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
                         title="Hapus data anggota"
                       >
@@ -435,8 +452,22 @@ export function MemberDirectory() {
         onClose={() => setIsImportOpen(false)}
         onSuccess={() => {
           fetchMembers();
+          showToast("Data Berhasil Diimpor", "Data anggota telah diperbarui di database", "success");
         }}
+      />
+
+      {/* 5. Confirm Delete Alert Dialog (shadcn/ui style) */}
+      <ConfirmDialog
+        isOpen={!!targetDeleteMember}
+        onClose={() => setTargetDeleteMember(null)}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Data Anggota / Kader"
+        description={`Apakah Anda yakin ingin menghapus data kader "${targetDeleteMember?.name}" (KTA: ${targetDeleteMember?.ktaNumber})? Tindakan ini akan menghapus data dari sistem secara permanen.`}
+        confirmLabel="Hapus Kader"
+        variant="danger"
+        isLoading={isDeleting}
       />
     </div>
   );
 }
+
