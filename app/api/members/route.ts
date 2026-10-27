@@ -8,6 +8,8 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;
+    const province = searchParams.get("province") || undefined;
+    const city = searchParams.get("city") || undefined;
     const district = searchParams.get("district") || undefined;
     const subdistrict = searchParams.get("subdistrict") || undefined;
     const position = searchParams.get("position") || undefined;
@@ -19,7 +21,7 @@ export async function GET(req: Request) {
     const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     const [result, stats] = await Promise.all([
-      DataService.getPartyMembers({ search, district, subdistrict, position, gender, limit, offset }),
+      DataService.getPartyMembers({ search, province, city, district, subdistrict, position, gender, limit, offset }),
       DataService.getPartyMemberStats(),
     ]);
 

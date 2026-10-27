@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Users,
   Search,
@@ -14,12 +14,17 @@ import {
   Trash2,
   RefreshCw,
   Award,
+  Filter,
+  RotateCcw,
+  ChevronRight,
+  Building2,
 } from "lucide-react";
 import type { PartyMember } from "@/lib/db/schema";
 import { MemberImportModal } from "./MemberImportModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { getTerritoryOptions } from "@/lib/constants/territories";
 
 interface StatsData {
   totalMembers: number;
@@ -30,16 +35,33 @@ interface StatsData {
   totalRegular: number;
   totalVerified: number;
   districts: Record<string, number>;
+  subdistricts?: Record<string, number>;
+  cities?: Record<string, number>;
+  provinces?: Record<string, number>;
+  existingTerritories?: Array<{
+    province?: string | null;
+    city?: string | null;
+    district?: string | null;
+    subdistrict?: string | null;
+  }>;
 }
 
 export function MemberDirectory() {
   const [members, setMembers] = useState<PartyMember[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Search & Basic Filters
   const [search, setSearch] = useState("");
-  const [district, setDistrict] = useState("");
   const [position, setPosition] = useState("");
   const [gender, setGender] = useState("");
+
+  // Hierarchical Territorial Filters
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [district, setDistrict] = useState("");
+  const [subdistrict, setSubdistrict] = useState("");
+
   const [unmaskSensitive, setUnmaskSensitive] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
@@ -47,6 +69,54 @@ export function MemberDirectory() {
 
   const { showDeleteToast, showToast } = useToast();
 
+  // Territory Options Helper (merges master data with actual database entries)
+  const territoryHelper = useMemo(() => {
+    return getTerritoryOptions(stats?.existingTerritories || []);
+  }, [stats?.existingTerritories]);
+
+  const provinceOptions = useMemo(() => territoryHelper.getProvinces(), [territoryHelper]);
+  const cityOptions = useMemo(() => territoryHelper.getCities(province), [territoryHelper, province]);
+  const districtOptions = useMemo(
+    () => territoryHelper.getDistricts(province, city),
+    [territoryHelper, province, city]
+  );
+  const subdistrictOptions = useMemo(
+    () => territoryHelper.getSubdistricts(province, city, district),
+    [territoryHelper, province, city, district]
+  );
+
+  // Cascading Selection Handlers
+  const handleProvinceChange = (newProv: string) => {
+    setProvince(newProv);
+    setCity("");
+    setDistrict("");
+    setSubdistrict("");
+  };
+
+  const handleCityChange = (newCity: string) => {
+    setCity(newCity);
+    setDistrict("");
+    setSubdistrict("");
+  };
+
+  const handleDistrictChange = (newDist: string) => {
+    setDistrict(newDist);
+    setSubdistrict("");
+  };
+
+  const handleResetTerritory = () => {
+    setProvince("");
+    setCity("");
+    setDistrict("");
+    setSubdistrict("");
+  };
+
+  const handleResetAllFilters = () => {
+    handleResetTerritory();
+    setPosition("");
+    setGender("");
+    setSearch("");
+  };
 
   // Fetch members and stats
   const fetchMembers = useCallback(async () => {
@@ -54,10 +124,13 @@ export function MemberDirectory() {
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      if (province) params.set("province", province);
+      if (city) params.set("city", city);
       if (district) params.set("district", district);
+      if (subdistrict) params.set("subdistrict", subdistrict);
       if (position) params.set("position", position);
       if (gender) params.set("gender", gender);
-      params.set("limit", "100");
+      params.set("limit", "150");
 
       const res = await fetch(`/api/members?${params.toString()}`);
       if (res.ok) {
@@ -70,7 +143,7 @@ export function MemberDirectory() {
     } finally {
       setLoading(false);
     }
-  }, [search, district, position, gender]);
+  }, [search, province, city, district, subdistrict, position, gender]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -144,8 +217,20 @@ export function MemberDirectory() {
     return "bg-slate-100 text-slate-700 border-slate-200";
   };
 
+  // Active Structure Level Label
+  const activeLevelLabel = useMemo(() => {
+    if (subdistrict) return { label: `Ranting: Kel. ${subdistrict}`, badge: "Tingkat Ranting / Kelurahan" };
+    if (district) return { label: `PAC: Kec. ${district}`, badge: "Tingkat PAC / Kecamatan" };
+    if (city) return { label: `DPC: ${city}`, badge: "Tingkat DPC / Kota-Kab" };
+    if (province) return { label: `DPD: ${province}`, badge: "Tingkat DPD / Provinsi" };
+    return { label: "Seluruh Struktur Wilayah", badge: "Nasional / Semua Basis" };
+  }, [province, city, district, subdistrict]);
+
+  const hasTerritorialFilter = Boolean(province || city || district || subdistrict);
+  const hasAnyFilter = Boolean(province || city || district || subdistrict || position || search || gender);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* 1. Header Stats Bar (With Skeleton Loading) */}
       {loading && !stats ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -170,7 +255,6 @@ export function MemberDirectory() {
               {stats.totalMale} Laki-laki • {stats.totalFemale} Perempuan
             </p>
           </div>
-
 
           {/* Card 2: Keterwakilan Perempuan (30% KPU Quota) */}
           <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
@@ -231,7 +315,120 @@ export function MemberDirectory() {
         </div>
       ) : null}
 
-      {/* 2. Control Bar (Search, Filters, Data Masking & Import Button) */}
+      {/* 2. Hierarchical Territorial Filter Card (Provinsi -> Kota/Kab -> Kecamatan -> Kelurahan) */}
+      <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900">
+                  Filter Wilayah & Tingkat Kepengurusan Struktur
+                </h2>
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                  {activeLevelLabel.badge}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Pilih secara bertingkat: DPD (Provinsi) &rarr; DPC (Kota/Kab) &rarr; PAC (Kecamatan) &rarr; Ranting (Kelurahan) untuk melihat seluruh susunan pengurus pada tingkatan tersebut.
+              </p>
+            </div>
+          </div>
+
+          {hasTerritorialFilter && (
+            <button
+              onClick={handleResetTerritory}
+              className="text-xs font-semibold text-rose-600 hover:text-rose-800 flex items-center gap-1 self-start sm:self-auto hover:underline transition"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Wilayah</span>
+            </button>
+          )}
+        </div>
+
+        {/* 4 Cascading Dropdowns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* 1. Provinsi */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              1. Provinsi (DPD)
+            </label>
+            <select
+              value={province}
+              onChange={(e) => handleProvinceChange(e.target.value)}
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+            >
+              <option value="">Semua Provinsi</option>
+              {provinceOptions.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Kota / Kab */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              2. Kota / Kabupaten (DPC)
+            </label>
+            <select
+              value={city}
+              onChange={(e) => handleCityChange(e.target.value)}
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+            >
+              <option value="">Semua Kota / Kab</option>
+              {cityOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Kecamatan */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              3. Kecamatan (PAC)
+            </label>
+            <select
+              value={district}
+              onChange={(e) => handleDistrictChange(e.target.value)}
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+            >
+              <option value="">Semua Kecamatan (PAC)</option>
+              {districtOptions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Kelurahan / Desa */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              4. Kelurahan / Desa (Ranting)
+            </label>
+            <select
+              value={subdistrict}
+              onChange={(e) => setSubdistrict(e.target.value)}
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+            >
+              <option value="">Semua Kelurahan (Ranting)</option>
+              {subdistrictOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Control Bar (Search, Jabatan, Gender, Data Masking & Import Button) */}
       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         {/* Search */}
         <div className="relative flex-1">
@@ -245,28 +442,13 @@ export function MemberDirectory() {
           />
         </div>
 
-        {/* Filters */}
+        {/* Filters & Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Kecamatan */}
-          <select
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700"
-          >
-            <option value="">Semua Kecamatan</option>
-            <option value="Pontianak Barat">Pontianak Barat</option>
-            <option value="Pontianak Kota">Pontianak Kota</option>
-            <option value="Pontianak Selatan">Pontianak Selatan</option>
-            <option value="Pontianak Tenggara">Pontianak Tenggara</option>
-            <option value="Pontianak Timur">Pontianak Timur</option>
-            <option value="Pontianak Utara">Pontianak Utara</option>
-          </select>
-
-          {/* Jabatan */}
+          {/* Jabatan Filter */}
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
-            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700"
+            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700 font-medium"
           >
             <option value="">Semua Jabatan</option>
             <option value="Ketua">Ketua</option>
@@ -275,14 +457,15 @@ export function MemberDirectory() {
             <option value="Wakil Ketua">Wakil Ketua</option>
             <option value="Wakil Sekretaris">Wakil Sekretaris</option>
             <option value="Wakil Bendahara">Wakil Bendahara</option>
-            <option value="regular">Regular</option>
+            <option value="Koordinator">Koordinator</option>
+            <option value="regular">Regular / Anggota</option>
           </select>
 
-          {/* Gender */}
+          {/* Gender Filter */}
           <select
             value={gender}
             onChange={(e) => setGender(e.target.value)}
-            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700"
+            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700 font-medium"
           >
             <option value="">Semua Gender</option>
             <option value="Laki-laki">Laki-laki</option>
@@ -308,6 +491,8 @@ export function MemberDirectory() {
             onClick={fetchMembers}
             disabled={loading}
             className="p-2 text-slate-500 hover:text-slate-800 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition"
+            title="Muat ulang data anggota"
+            aria-label="Muat ulang data anggota"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -323,17 +508,71 @@ export function MemberDirectory() {
         </div>
       </div>
 
-      {/* 3. Table of Members */}
+      {/* 4. Active Structure Breadcrumb & Indicator Banner */}
+      {hasAnyFilter && (
+        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-blue-900 animate-in fade-in duration-150">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-blue-800 flex items-center gap-1.5 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>Hierarki Aktif:</span>
+            </span>
+
+            <div className="flex flex-wrap items-center gap-1 text-[11px]">
+              <span className="px-2 py-0.5 rounded bg-white border border-blue-200 font-semibold text-blue-800">
+                {province || "Semua DPD"}
+              </span>
+              <ChevronRight className="w-3 h-3 text-blue-400" />
+              <span className="px-2 py-0.5 rounded bg-white border border-blue-200 font-semibold text-blue-800">
+                {city || "Semua DPC"}
+              </span>
+              <ChevronRight className="w-3 h-3 text-blue-400" />
+              <span className="px-2 py-0.5 rounded bg-white border border-blue-200 font-semibold text-blue-800">
+                {district ? `Kec. ${district} (PAC)` : "Semua PAC"}
+              </span>
+              <ChevronRight className="w-3 h-3 text-blue-400" />
+              <span
+                className={`px-2 py-0.5 rounded font-bold border transition ${
+                  subdistrict
+                    ? "bg-blue-600 text-white border-blue-600 shadow-2xs"
+                    : "bg-white border-blue-200 text-blue-800"
+                }`}
+              >
+                {subdistrict ? `Kel. ${subdistrict} (Ranting)` : "Semua Ranting"}
+              </span>
+            </div>
+
+            {position && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-100/80 border border-indigo-200 text-indigo-800 font-bold text-[11px]">
+                Jabatan: &ldquo;{position}&rdquo;
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
+            <span className="text-[11px] font-bold text-blue-700 tabular-nums">
+              {members.length} kader ditampilkan
+            </span>
+            <button
+              onClick={handleResetAllFilters}
+              className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline"
+            >
+              Reset Semua
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Table of Members */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase tracking-wider font-semibold text-[11px]">
               <tr>
                 <th className="py-3 px-4">No. KTA & Nama</th>
-                <th className="py-3 px-4">Jabatan</th>
+                <th className="py-3 px-4">Jabatan Struktural</th>
                 <th className="py-3 px-4">NIK</th>
                 <th className="py-3 px-4">Gender & Usia</th>
-                <th className="py-3 px-4">Wilayah</th>
+                <th className="py-3 px-4">Wilayah Kepengurusan</th>
                 <th className="py-3 px-4">Kontak (WA)</th>
                 <th className="py-3 px-4">Status Organisasi</th>
                 <th className="py-3 px-4 text-right">Aksi</th>
@@ -348,19 +587,21 @@ export function MemberDirectory() {
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                    <p className="font-medium text-slate-600">Belum ada data anggota.</p>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Gunakan tombol <strong>&ldquo;Import Excel / CSV&rdquo;</strong> di atas untuk memasukkan data kader.
+                    <p className="font-semibold text-slate-700">Tidak ada kader yang cocok dengan filter wilayah/jabatan ini</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Coba sesuaikan pilihan kelurahan, kecamatan, atau klik &ldquo;Reset Wilayah&rdquo;.
                     </p>
                   </td>
                 </tr>
               ) : (
                 members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* No KTA & Nama */}
+                  <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                    {/* KTA & Nama */}
                     <td className="py-3 px-4">
                       <div className="font-bold text-slate-900">{m.name}</div>
-                      <div className="text-[10px] font-mono text-slate-400">{m.ktaNumber}</div>
+                      <div className="text-[11px] text-blue-600 font-mono font-medium">
+                        KTA: {m.ktaNumber}
+                      </div>
                     </td>
 
                     {/* Jabatan */}
@@ -383,11 +624,16 @@ export function MemberDirectory() {
 
                     {/* Wilayah */}
                     <td className="py-3 px-4">
-                      <div className="font-medium text-slate-800 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-slate-400" />
+                      <div className="font-bold text-slate-900 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                         <span>{m.district || "-"}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 pl-4">{m.subdistrict || "-"}</div>
+                      <div className="text-[11px] text-slate-600 font-semibold pl-4">
+                        {m.subdistrict ? `Kel. ${m.subdistrict}` : "-"}
+                      </div>
+                      <div className="text-[10px] text-slate-400 pl-4 truncate max-w-40">
+                        {m.city ? m.city.replace("KABUPATEN", "Kab.").replace("KOTA", "Kota") : "Pontianak"}
+                      </div>
                     </td>
 
                     {/* Kontak (WA) */}
@@ -426,6 +672,7 @@ export function MemberDirectory() {
                         onClick={() => setTargetDeleteMember(m)}
                         className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
                         title="Hapus data anggota"
+                        aria-label="Hapus data anggota"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -439,35 +686,36 @@ export function MemberDirectory() {
 
         {/* Footer info */}
         <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-          <span>Menampilkan {members.length} anggota</span>
+          <span>Menampilkan {members.length} anggota kader</span>
           <span className="text-[11px] text-slate-400 italic">
-            CRMForU Data Protection Standard
+            Hierarki Wilayah &bull; DPD &bull; DPC &bull; PAC &bull; Ranting
           </span>
         </div>
       </div>
 
-      {/* 4. Import Modal */}
+      {/* 6. Import Modal */}
       <MemberImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onSuccess={() => {
           fetchMembers();
-          showToast("Data Berhasil Diimpor", "Data anggota telah diperbarui di database", "success");
         }}
       />
 
-      {/* 5. Confirm Delete Alert Dialog (shadcn/ui style) */}
+      {/* 7. Confirm Delete Alert Dialog (shadcn/ui style) */}
       <ConfirmDialog
         isOpen={!!targetDeleteMember}
-        onClose={() => setTargetDeleteMember(null)}
+        onClose={() => {
+          if (!isDeleting) setTargetDeleteMember(null);
+        }}
         onConfirm={handleConfirmDelete}
-        title="Hapus Data Anggota / Kader"
-        description={`Apakah Anda yakin ingin menghapus data kader "${targetDeleteMember?.name}" (KTA: ${targetDeleteMember?.ktaNumber})? Tindakan ini akan menghapus data dari sistem secara permanen.`}
+        title="Hapus Data Kader / Pengurus"
+        description={`Apakah Anda yakin ingin menghapus data anggota "${targetDeleteMember?.name}"? Tindakan ini akan menghapus catatan kader dari sistem.`}
         confirmLabel="Hapus Kader"
+        cancelLabel="Batal"
         variant="danger"
         isLoading={isDeleting}
       />
     </div>
   );
 }
-

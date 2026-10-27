@@ -15,7 +15,7 @@ import {
   type PartyMember,
   type NewPartyMember,
 } from "@/lib/db/schema";
-import { eq, desc, and, isNull, or, ilike } from "drizzle-orm";
+import { eq, desc, and, isNull, or, ilike, not } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Local storage path for offline / development resilience
@@ -997,6 +997,8 @@ export const DataService = {
   // PARTY MEMBERS & CADRES (Manajemen Anggota & Pengurus)
   async getPartyMembers(filters?: {
     search?: string;
+    province?: string;
+    city?: string;
     district?: string;
     subdistrict?: string;
     position?: string;
@@ -1010,17 +1012,46 @@ export const DataService = {
         let query = db.select().from(partyMembers).$dynamic();
         const conditions = [];
 
+        if (filters?.province) {
+          conditions.push(ilike(partyMembers.province, filters.province));
+        }
+        if (filters?.city) {
+          conditions.push(ilike(partyMembers.city, filters.city));
+        }
         if (filters?.district) {
-          conditions.push(eq(partyMembers.district, filters.district));
+          const d = filters.district.trim();
+          const dNoSpace = d.replace(/\s+/g, "");
+          conditions.push(
+            or(
+              ilike(partyMembers.district, `%${d}%`),
+              ilike(partyMembers.district, `%${dNoSpace}%`)
+            )
+          );
         }
         if (filters?.subdistrict) {
-          conditions.push(eq(partyMembers.subdistrict, filters.subdistrict));
+          const s = filters.subdistrict.trim();
+          const sNoSpace = s.replace(/\s+/g, "");
+          conditions.push(
+            or(
+              ilike(partyMembers.subdistrict, `%${s}%`),
+              ilike(partyMembers.subdistrict, `%${sNoSpace}%`)
+            )
+          );
         }
         if (filters?.position) {
-          conditions.push(eq(partyMembers.position, filters.position));
+          if (filters.position.toLowerCase() === "ketua") {
+            conditions.push(
+              and(
+                ilike(partyMembers.position, "%ketua%"),
+                not(ilike(partyMembers.position, "%wakil%"))
+              )
+            );
+          } else {
+            conditions.push(ilike(partyMembers.position, `%${filters.position}%`));
+          }
         }
         if (filters?.gender) {
-          conditions.push(eq(partyMembers.gender, filters.gender));
+          conditions.push(ilike(partyMembers.gender, filters.gender));
         }
         if (filters?.search) {
           const s = `%${filters.search.trim()}%`;
@@ -1040,7 +1071,7 @@ export const DataService = {
         const all = await query.orderBy(desc(partyMembers.createdAt));
         const total = all.length;
         const offset = filters?.offset ?? 0;
-        const limit = filters?.limit ?? 50;
+        const limit = filters?.limit ?? 100;
         const paginated = all.slice(offset, offset + limit);
 
         return { members: paginated, total };
@@ -1054,14 +1085,36 @@ export const DataService = {
     if (!local.partyMembers) local.partyMembers = [];
     let list = [...local.partyMembers];
 
+    if (filters?.province) {
+      list = list.filter((m) => m.province?.toLowerCase() === filters.province?.toLowerCase());
+    }
+    if (filters?.city) {
+      list = list.filter((m) => m.city?.toLowerCase() === filters.city?.toLowerCase());
+    }
     if (filters?.district) {
-      list = list.filter((m) => m.district?.toLowerCase() === filters.district?.toLowerCase());
+      const target = filters.district.toLowerCase().replace(/\s+/g, "");
+      list = list.filter((m) => {
+        const d = (m.district || "").toLowerCase().replace(/\s+/g, "");
+        return d.includes(target) || target.includes(d);
+      });
     }
     if (filters?.subdistrict) {
-      list = list.filter((m) => m.subdistrict?.toLowerCase() === filters.subdistrict?.toLowerCase());
+      const target = filters.subdistrict.toLowerCase().replace(/\s+/g, "");
+      list = list.filter((m) => {
+        const s = (m.subdistrict || "").toLowerCase().replace(/\s+/g, "");
+        return s.includes(target) || target.includes(s);
+      });
     }
     if (filters?.position) {
-      list = list.filter((m) => m.position?.toLowerCase() === filters.position?.toLowerCase());
+      const p = filters.position.toLowerCase();
+      if (p === "ketua") {
+        list = list.filter((m) => {
+          const pos = m.position?.toLowerCase() || "";
+          return pos.includes("ketua") && !pos.includes("wakil");
+        });
+      } else {
+        list = list.filter((m) => m.position?.toLowerCase().includes(p));
+      }
     }
     if (filters?.gender) {
       list = list.filter((m) => m.gender?.toLowerCase() === filters.gender?.toLowerCase());
@@ -1079,7 +1132,7 @@ export const DataService = {
 
     const total = list.length;
     const offset = filters?.offset ?? 0;
-    const limit = filters?.limit ?? 50;
+    const limit = filters?.limit ?? 100;
     const paginated = list.slice(offset, offset + limit);
 
     return { members: paginated, total };
@@ -1094,6 +1147,15 @@ export const DataService = {
     totalRegular: number;
     totalVerified: number;
     districts: Record<string, number>;
+    subdistricts: Record<string, number>;
+    cities: Record<string, number>;
+    provinces: Record<string, number>;
+    existingTerritories: Array<{
+      province?: string | null;
+      city?: string | null;
+      district?: string | null;
+      subdistrict?: string | null;
+    }>;
   }> {
     const isPg = await checkPg();
     let allMembers: PartyMember[] = [];
@@ -1128,9 +1190,34 @@ export const DataService = {
     ).length;
 
     const districts: Record<string, number> = {};
+    const subdistricts: Record<string, number> = {};
+    const cities: Record<string, number> = {};
+    const provinces: Record<string, number> = {};
+
+    const existingTerritories: Array<{
+      province?: string | null;
+      city?: string | null;
+      district?: string | null;
+      subdistrict?: string | null;
+    }> = [];
+
     for (const m of allMembers) {
+      const prov = m.province || "KALIMANTAN BARAT";
+      const cit = m.city || "KOTA PONTIANAK";
       const dist = m.district || "Belum Terdata";
+      const sub = m.subdistrict || "Belum Terdata";
+
+      provinces[prov] = (provinces[prov] || 0) + 1;
+      cities[cit] = (cities[cit] || 0) + 1;
       districts[dist] = (districts[dist] || 0) + 1;
+      subdistricts[sub] = (subdistricts[sub] || 0) + 1;
+
+      existingTerritories.push({
+        province: m.province,
+        city: m.city,
+        district: m.district,
+        subdistrict: m.subdistrict,
+      });
     }
 
     return {
@@ -1142,6 +1229,10 @@ export const DataService = {
       totalRegular,
       totalVerified,
       districts,
+      subdistricts,
+      cities,
+      provinces,
+      existingTerritories,
     };
   },
 
