@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
-    "db:sync": "node scripts/sync-local-to-supabase.mjs"
+    "db:sync": "node scripts/sync-local-to-supabase.mjs",
+    "db:sync:rest": "node scripts/sync-supabase-rest.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
