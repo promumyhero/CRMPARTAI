@@ -41,10 +41,16 @@ function getInitialState(): LocalStoreState {
     users: [
       {
         id: 1,
-        name: "Administrator Utama",
+        name: "Administrator Utama (DPD Kalbar)",
         email: "admin@crmforu.com",
         passwordHash: hashedPassword,
-        role: "admin",
+        role: "superadmin",
+        phone: null,
+        status: "active",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: null,
+        lastLoginAt: null,
         createdAt: now,
       },
     ],
@@ -413,6 +419,98 @@ function loadLocalStore(): LocalStoreState {
     if (!parsed.partyMembers) {
       parsed.partyMembers = [];
     }
+    if (!parsed.users) {
+      parsed.users = [];
+    }
+
+    // Seed default role test accounts if they don't already exist
+    const defaultAccounts: Array<{
+      name: string;
+      email: string;
+      passwordPlain: string;
+      role: string;
+      province?: string;
+      city?: string;
+      district?: string;
+      phone?: string;
+    }> = [
+      {
+        name: "Administrator Utama (DPD Kalbar)",
+        email: "admin@crmforu.com",
+        passwordPlain: "admin123",
+        role: "superadmin",
+        province: "KALIMANTAN BARAT",
+        phone: "0812-5555-001",
+      },
+      {
+        name: "Pengurus Cabang DPC Pontianak",
+        email: "dpc.pontianak@crmforu.com",
+        passwordPlain: "dpc123",
+        role: "admin_dpc",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        phone: "0812-5555-002",
+      },
+      {
+        name: "Pengurus PAC Pontianak Kota",
+        email: "pac.pontianakkota@crmforu.com",
+        passwordPlain: "pac123",
+        role: "admin_pac",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: "Pontianak Kota",
+        phone: "0812-5555-003",
+      },
+      {
+        name: "Staf Operator & KTA",
+        email: "operator@crmforu.com",
+        passwordPlain: "operator123",
+        role: "operator",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        phone: "0812-5555-004",
+      },
+      {
+        name: "Kader Simpatisan (Viewer)",
+        email: "kader@crmforu.com",
+        passwordPlain: "kader123",
+        role: "viewer",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        phone: "0812-5555-005",
+      },
+    ];
+
+    let hasChanges = false;
+    for (const acc of defaultAccounts) {
+      const existing = parsed.users.find((u) => u.email.toLowerCase() === acc.email.toLowerCase());
+      if (!existing) {
+        const nextId = parsed.users.length ? Math.max(...parsed.users.map((u) => u.id)) + 1 : 1;
+        parsed.users.push({
+          id: nextId,
+          name: acc.name,
+          email: acc.email,
+          passwordHash: bcrypt.hashSync(acc.passwordPlain, 10),
+          role: acc.role,
+          phone: acc.phone || null,
+          status: "active",
+          province: acc.province || "KALIMANTAN BARAT",
+          city: acc.city || "KOTA PONTIANAK",
+          district: acc.district || null,
+          lastLoginAt: null,
+          createdAt: new Date(),
+        } as User);
+        hasChanges = true;
+      } else if (existing.email === "admin@crmforu.com" && existing.role !== "superadmin") {
+        existing.role = "superadmin";
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      saveLocalStore(parsed);
+    }
+
     return parsed;
   } catch (err) {
     console.error("Error loading local store:", err);
@@ -483,7 +581,50 @@ export const DataService = {
     return local.users.find((u) => u.id === id) || null;
   },
 
-  async createUser(data: { name: string; email: string; passwordHash: string; role?: string }): Promise<User> {
+  async getUsers(): Promise<Omit<User, "passwordHash">[]> {
+    const isPg = await checkPg();
+    if (isPg) {
+      try {
+        const all = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role,
+            phone: users.phone,
+            status: users.status,
+            province: users.province,
+            city: users.city,
+            district: users.district,
+            lastLoginAt: users.lastLoginAt,
+            createdAt: users.createdAt,
+          })
+          .from(users)
+          .orderBy(users.id);
+        if (all.length > 0) return all as Omit<User, "passwordHash">[];
+      } catch (e) {
+        console.warn("Falling back to local store for user list", e);
+      }
+    }
+    const local = loadLocalStore();
+    return local.users.map((u) => {
+      const { passwordHash: _ignored, ...rest } = u;
+      void _ignored;
+      return rest as Omit<User, "passwordHash">;
+    });
+  },
+
+  async createUser(data: {
+    name: string;
+    email: string;
+    passwordHash: string;
+    role?: string;
+    phone?: string;
+    status?: string;
+    province?: string;
+    city?: string;
+    district?: string;
+  }): Promise<User> {
     const isPg = await checkPg();
     if (isPg) {
       try {
@@ -494,6 +635,11 @@ export const DataService = {
             email: data.email,
             passwordHash: data.passwordHash,
             role: data.role || "admin",
+            phone: data.phone || null,
+            status: data.status || "active",
+            province: data.province || "KALIMANTAN BARAT",
+            city: data.city || "KOTA PONTIANAK",
+            district: data.district || null,
           })
           .returning();
         return inserted[0];
@@ -508,11 +654,104 @@ export const DataService = {
       email: data.email,
       passwordHash: data.passwordHash,
       role: data.role || "admin",
+      phone: data.phone || null,
+      status: data.status || "active",
+      province: data.province || "KALIMANTAN BARAT",
+      city: data.city || "KOTA PONTIANAK",
+      district: data.district || null,
+      lastLoginAt: null,
       createdAt: new Date(),
     };
     local.users.push(newUser);
     saveLocalStore(local);
     return newUser;
+  },
+
+  async updateUser(
+    id: number,
+    data: {
+      name?: string;
+      email?: string;
+      passwordHash?: string;
+      role?: string;
+      phone?: string;
+      status?: string;
+      province?: string;
+      city?: string;
+      district?: string;
+    }
+  ): Promise<User | null> {
+    const isPg = await checkPg();
+    if (isPg) {
+      try {
+        const updated = await db
+          .update(users)
+          .set({
+            ...(data.name ? { name: data.name } : {}),
+            ...(data.email ? { email: data.email } : {}),
+            ...(data.passwordHash ? { passwordHash: data.passwordHash } : {}),
+            ...(data.role ? { role: data.role } : {}),
+            ...(data.phone !== undefined ? { phone: data.phone } : {}),
+            ...(data.status ? { status: data.status } : {}),
+            ...(data.province !== undefined ? { province: data.province } : {}),
+            ...(data.city !== undefined ? { city: data.city } : {}),
+            ...(data.district !== undefined ? { district: data.district } : {}),
+          })
+          .where(eq(users.id, id))
+          .returning();
+        if (updated.length > 0) return updated[0];
+      } catch (e) {
+        console.warn("Falling back to local store for user update", e);
+      }
+    }
+    const local = loadLocalStore();
+    const idx = local.users.findIndex((u) => u.id === id);
+    if (idx === -1) return null;
+    local.users[idx] = {
+      ...local.users[idx],
+      ...data,
+    };
+    saveLocalStore(local);
+    return local.users[idx];
+  },
+
+  async deleteUser(id: number): Promise<boolean> {
+    const isPg = await checkPg();
+    if (isPg) {
+      try {
+        await db.delete(users).where(eq(users.id, id));
+        return true;
+      } catch (e) {
+        console.warn("Falling back to local store for user delete", e);
+      }
+    }
+    const local = loadLocalStore();
+    const initialLen = local.users.length;
+    local.users = local.users.filter((u) => u.id !== id);
+    if (local.users.length !== initialLen) {
+      saveLocalStore(local);
+      return true;
+    }
+    return false;
+  },
+
+  async recordLogin(id: number): Promise<void> {
+    const now = new Date();
+    const isPg = await checkPg();
+    if (isPg) {
+      try {
+        await db.update(users).set({ lastLoginAt: now }).where(eq(users.id, id));
+        return;
+      } catch {
+        // fallback to local
+      }
+    }
+    const local = loadLocalStore();
+    const user = local.users.find((u) => u.id === id);
+    if (user) {
+      user.lastLoginAt = now;
+      saveLocalStore(local);
+    }
   },
 
   // ACTIVITIES (CRUD + Keyset Cursor Pagination)

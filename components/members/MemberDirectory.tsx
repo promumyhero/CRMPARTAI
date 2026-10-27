@@ -25,6 +25,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { getTerritoryOptions } from "@/lib/constants/territories";
+import { normalizeRole, hasPermission } from "@/lib/auth/roles";
 
 interface StatsData {
   totalMembers: number;
@@ -66,8 +67,32 @@ export function MemberDirectory() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ role: string; district?: string | null } | null>(null);
 
   const { showDeleteToast, showToast } = useToast();
+
+  useEffect(() => {
+    let isMounted = true;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (isMounted && d.authenticated && d.user) {
+          setUserProfile(d.user);
+          if (d.user.district) {
+            setDistrict(d.user.district);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const normRole = userProfile ? normalizeRole(userProfile.role) : "viewer";
+  const canDelete = hasPermission(normRole, "members:delete");
+  const canCreate = hasPermission(normRole, "members:create");
+  const canViewNik = hasPermission(normRole, "members:view_nik");
 
   // Territory Options Helper (merges master data with actual database entries)
   const territoryHelper = useMemo(() => {
@@ -472,19 +497,21 @@ export function MemberDirectory() {
             <option value="Perempuan">Perempuan</option>
           </select>
 
-          {/* Toggle Masking */}
-          <button
-            onClick={() => setUnmaskSensitive(!unmaskSensitive)}
-            title={unmaskSensitive ? "Sembunyikan NIK & No HP" : "Buka sensor data NIK & No HP"}
-            className={`px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition ${
-              unmaskSensitive
-                ? "bg-amber-50 text-amber-800 border-amber-300"
-                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
-            }`}
-          >
-            {unmaskSensitive ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            <span>{unmaskSensitive ? "Sensor NIK" : "Buka Sensor NIK"}</span>
-          </button>
+          {/* Toggle Masking (Only for users with permission to view full NIK) */}
+          {canViewNik && (
+            <button
+              onClick={() => setUnmaskSensitive(!unmaskSensitive)}
+              title={unmaskSensitive ? "Sembunyikan NIK & No HP" : "Buka sensor data NIK & No HP"}
+              className={`px-3 py-2 text-xs font-semibold rounded-xl border flex items-center gap-1.5 transition ${
+                unmaskSensitive
+                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {unmaskSensitive ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{unmaskSensitive ? "Sensor NIK" : "Buka Sensor NIK"}</span>
+            </button>
+          )}
 
           {/* Refresh */}
           <button
@@ -497,14 +524,16 @@ export function MemberDirectory() {
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
 
-          {/* Import Excel */}
-          <button
-            onClick={() => setIsImportOpen(true)}
-            className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition flex items-center gap-1.5"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Import Excel / CSV</span>
-          </button>
+          {/* Import Excel (Only for users with create permission) */}
+          {canCreate && (
+            <button
+              onClick={() => setIsImportOpen(true)}
+              className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import Excel / CSV</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -668,14 +697,18 @@ export function MemberDirectory() {
 
                     {/* Aksi */}
                     <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => setTargetDeleteMember(m)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                        title="Hapus data anggota"
-                        aria-label="Hapus data anggota"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canDelete ? (
+                        <button
+                          onClick={() => setTargetDeleteMember(m)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                          title="Hapus data anggota"
+                          aria-label="Hapus data anggota"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-slate-300 italic">Terlindungi</span>
+                      )}
                     </td>
                   </tr>
                 ))

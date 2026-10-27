@@ -394,3 +394,29 @@ export function getTerritoryOptions(existingMembers: Array<{
     },
   };
 }
+
+export const WEST_KALIMANTAN_CITIES: string[] = [
+  "KOTA PONTIANAK",
+  "KABUPATEN KUBU RAYA",
+  "KABUPATEN MEMPAWAH",
+  "KOTA SINGKAWANG",
+  "KABUPATEN SAMBAS",
+  "KABUPATEN BENGKAYANG",
+  "KABUPATEN LANDAK",
+  "KABUPATEN SANGGAU",
+  "KABUPATEN SEKADAU",
+  "KABUPATEN SINTANG",
+  "KABUPATEN MELAWI",
+  "KABUPATEN KAPUAS HULU",
+  "KABUPATEN KETAPANG",
+  "KABUPATEN KAYONG UTARA",
+];
+
+export const PONTIANAK_DISTRICTS: Array<{ name: string }> = [
+  { name: "Pontianak Kota" },
+  { name: "Pontianak Barat" },
+  { name: "Pontianak Selatan" },
+  { name: "Pontianak Tenggara" },
+  { name: "Pontianak Timur" },
+  { name: "Pontianak Utara" },
+];

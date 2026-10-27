@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
-import { getCurrentUserOrDefault } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission, maskNik } from "@/lib/auth/roles";
 import type { NewPartyMember } from "@/lib/db/schema";
-
 
 export async function GET(req: Request) {
   try {
+    const session = await getSessionUser();
+    const canViewNik = session ? hasPermission(session.normalizedRole, "members:view_nik") : false;
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;
     const province = searchParams.get("province") || undefined;
@@ -25,8 +28,16 @@ export async function GET(req: Request) {
       DataService.getPartyMemberStats(),
     ]);
 
+    // Mask NIK if user lacks 'members:view_nik' permission (e.g. viewer role)
+    const members = canViewNik
+      ? result.members
+      : result.members.map((m) => ({
+          ...m,
+          nik: maskNik(m.nik, false),
+        }));
+
     return NextResponse.json({
-      members: result.members,
+      members,
       total: result.total,
       stats,
     });
@@ -38,7 +49,14 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    await getCurrentUserOrDefault();
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "members:create")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Anda tidak memiliki izin untuk menambah atau mengimpor data anggota." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
 
     // Batch upsert (from Excel/CSV import)
@@ -60,7 +78,6 @@ export async function POST(req: Request) {
         summary,
         message: `Berhasil memproses ${summary.total} data: ${summary.inserted} kader baru ditambahkan, ${summary.updated} data diperbarui.`,
       });
-
     }
 
     // Single member creation
@@ -98,7 +115,6 @@ export async function POST(req: Request) {
 
     const summary = await DataService.batchUpsertPartyMembers([singleItem]);
     return NextResponse.json({ success: true, summary });
-
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to save member";
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -1,29 +1,35 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
-import { getCurrentUserOrDefault } from "@/lib/auth/session";
-
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await getCurrentUserOrDefault();
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "members:delete")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Anda tidak memiliki izin untuk menghapus data kader/anggota." },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const memberId = parseInt(id, 10);
     if (isNaN(memberId)) {
-      return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+      return NextResponse.json({ error: "ID anggota tidak valid." }, { status: 400 });
     }
 
     const success = await DataService.deletePartyMember(memberId);
     if (!success) {
-
-      return NextResponse.json({ error: "Member not found" }, { status: 404 });
+      return NextResponse.json({ error: "Data kader tidak ditemukan." }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Data kader berhasil dihapus." });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to delete member";
+    const msg = err instanceof Error ? err.message : "Gagal menghapus data";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

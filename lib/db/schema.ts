@@ -14,13 +14,19 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-// 1. Users Table (Multi-User authentication & team access)
+// 1. Users Table (Multi-User authentication & team access with RBAC)
 export const users = pgTable("users", {
   id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 150 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
-  role: varchar("role", { length: 50 }).notNull().default("admin"), // 'admin' | 'member'
+  role: varchar("role", { length: 50 }).notNull().default("admin"), // 'superadmin' | 'admin_dpc' | 'admin_pac' | 'operator' | 'viewer'
+  phone: varchar("phone", { length: 50 }),
+  status: varchar("status", { length: 20 }).notNull().default("active"), // 'active' | 'suspended'
+  province: varchar("province", { length: 100 }).default("KALIMANTAN BARAT"),
+  city: varchar("city", { length: 100 }).default("KOTA PONTIANAK"),
+  district: varchar("district", { length: 100 }),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -48,10 +48,17 @@ Sistem aplikasi web modern untuk manajemen partai dan organisasi yang mengintegr
 ### 5. ⚙️ Template Manager & Pengaturan Lembaga
 - Kustomisasi kop surat resmi instansi/partai/organisasi, logo, alamat, kontak, nama pejabat penandatangan, NIP/NRP, serta penetapan default format kertas.
 
-### 6. 🔐 Multi-User Authentication & Keamanan Sesi
-- Sesi terenkripsi berbasis JWT (`jose`) dan HTTP-only Secure Cookies.
-- Pemisahan hak akses berbasis peran (*Admin* & *Member*).
-- Kredensial default pengujian: `admin@crmforu.com` / `admin123`.
+### 6. 🔐 Multi-User Authentication & Enterprise RBAC (Role-Based Access Control)
+- **Sesi Terenkripsi**: JWT (`jose`) dan HTTP-only Secure Cookies dengan proteksi kedaluwarsa otomatis.
+- **5 Tingkat Peran Hierarkis**:
+  1. `superadmin`: Akses penuh sistem, manajemen user, dan seluruh wilayah.
+  2. `admin_dpc`: Pengurus tingkat Kota/Kabupaten (akses data se-kota/kabupaten).
+  3. `admin_pac`: Pengurus tingkat Kecamatan (akses data se-kecamatan).
+  4. `operator`: Petugas entri data kegiatan, RAB, dan kader.
+  5. `viewer`: Hak akses lihat/baca saja (*read-only*).
+- **Proteksi Brute-Force**: In-memory rate limiting pada endpoint login untuk mencegah serangan pembobolan kata sandi.
+- **User Manager UI**: Manajemen akun pengguna, status aktif/non-aktif, dan penugasan wilayah administratif.
+- **Supabase Production Sync**: Berkas SQL resmi `supabase_schema.sql` dan perintah `pnpm run db:sync` untuk migrasi data instan ke Supabase.
 
 ---
 
@@ -62,31 +69,36 @@ crmforu/
 ├── app/
 │   ├── api/                   # Route Handlers Next.js App Router
 │   │   ├── activities/        # REST API endpoints untuk Kegiatan
-│   │   ├── auth/              # Endpoints otentikasi (login, logout, register, me)
+│   │   ├── auth/              # Otentikasi (login, logout, register, me)
 │   │   ├── autofill/          # Smart suggestions untuk item belanja
 │   │   ├── budget/            # REST API endpoints untuk RAB
 │   │   ├── documents/         # Generator file .docx native OpenXML
 │   │   ├── health/            # Healthcheck database & server
 │   │   ├── members/           # REST API endpoints untuk Data Anggota/Kader
-│   │   └── templates/         # Pengaturan template kop surat
+│   │   ├── templates/         # Pengaturan template kop surat
+│   │   └── users/             # REST API endpoints untuk Manajemen User & RBAC
 │   ├── globals.css            # Desain sistem & Tailwind CSS v4 tokens
 │   ├── layout.tsx             # Root layout dengan ToastProvider
 │   ├── page.tsx               # Dashboard utama & modular tab navigator
 │   └── todos/                 # Supabase integration test page
 ├── components/
 │   ├── activities/            # Komponen Activity Planner & modal form
+│   ├── auth/                  # Komponen Login Page & otentikasi
 │   ├── budget/                # Komponen RAB & Summary Bar keuangan
 │   ├── documents/             # Editor surat & Live A4/F4 paper preview
 │   ├── members/               # Direktori Anggota, KTA & Modal Import Excel
 │   ├── templates/             # Panel kustomisasi template surat
-│   ├── ui/                    # UI atomics (Toast, Modal, Badges, Tabs)
-│   ├── AuthModal.tsx          # Dialog login & register
-│   └── Navbar.tsx             # Global navigation bar
+│   ├── ui/                    # UI atomics (Toast, Modal, Badges, Tabs, Skeleton, ConfirmDialog)
+│   ├── users/                 # Komponen User Management & Role Assignment
+│   └── Navbar.tsx             # Global navigation bar dengan RBAC awareness
 ├── docs/                      # Dokumentasi & PRD resmi proyek
 ├── lib/
-│   ├── auth/                  # JWT signing, verification & hashing
+│   ├── auth/                  # JWT signing, RBAC roles, rate-limit & validation
+│   ├── constants/             # Master data wilayah administratif Kalimantan Barat
 │   ├── db/                    # Drizzle ORM schema, migrations & resilient store
 │   └── excel/                 # Parser & validator file Excel (.xlsx) data anggota
+├── scripts/                   # Script utilitas sinkronisasi Supabase & test login
+├── supabase_schema.sql        # Skema DDL & Initial Data lengkap Supabase
 ├── utils/
 │   └── supabase/              # Supabase SSR client, server, and middleware
 ├── docker-compose.yml         # Container PostgreSQL lokal
