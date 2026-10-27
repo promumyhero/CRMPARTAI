@@ -7,7 +7,9 @@ import { ActivityPlanner } from "@/components/activities/ActivityPlanner";
 import { BudgetPlanner } from "@/components/budget/BudgetPlanner";
 import { DocumentGenerator } from "@/components/documents/DocumentGenerator";
 import { TemplateCustomizer } from "@/components/templates/TemplateCustomizer";
+import { MemberDirectory } from "@/components/members/MemberDirectory";
 import { useToast } from "@/components/ui/Toast";
+
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("activities");
@@ -90,8 +92,11 @@ export default function Home() {
           <DocumentGenerator initialActivityId={linkedActivityId} />
         )}
 
+        {activeTab === "members" && <MemberDirectory />}
+
         {activeTab === "templates" && <TemplateCustomizer />}
       </main>
+
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-3 sm:py-4 text-center text-xs text-slate-500">

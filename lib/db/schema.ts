@@ -152,6 +152,47 @@ export const documentTemplates = pgTable("document_templates", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// 7. Party Members & Cadres Table (Direktori Anggota & Pengurus Partai)
+export const partyMembers = pgTable(
+  "party_members",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    sourceId: varchar("source_id", { length: 100 }), // UUID asli sumber jika ada
+    ktaNumber: varchar("kta_number", { length: 50 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    nik: varchar("nik", { length: 25 }),
+    gender: varchar("gender", { length: 20 }), // 'Laki-laki' | 'Perempuan'
+    birthPlace: varchar("birth_place", { length: 100 }),
+    birthDate: date("birth_date"),
+    maritalStatus: varchar("marital_status", { length: 50 }),
+    nationality: varchar("nationality", { length: 50 }).default("Indonesia"),
+    job: varchar("job", { length: 100 }),
+    email: varchar("email", { length: 255 }),
+    isEmailVerified: boolean("is_email_verified").default(false),
+    phone: varchar("phone", { length: 50 }),
+    province: varchar("province", { length: 100 }).default("KALIMANTAN BARAT"),
+    city: varchar("city", { length: 100 }).default("KOTA PONTIANAK"),
+    district: varchar("district", { length: 100 }), // Kecamatan
+    subdistrict: varchar("subdistrict", { length: 100 }), // Kelurahan
+    address: text("address"),
+    postalCode: varchar("postal_code", { length: 20 }),
+    position: varchar("position", { length: 100 }).notNull().default("regular"), // Ketua, Sekretaris, Bendahara, dll.
+    membershipStatus: varchar("membership_status", { length: 50 }).default("Aktif"),
+    orgVerificationStatus: varchar("org_verification_status", { length: 100 }).default("Belum Terverifikasi"),
+    dppValidationStatus: varchar("dpp_validation_status", { length: 100 }).default("Belum Divalidasi DPP"),
+    dppDecisionDate: timestamp("dpp_decision_date", { withTimezone: true }),
+    kpuStatusChangeDate: timestamp("kpu_status_change_date", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("uq_party_members_kta").on(table.ktaNumber),
+    index("idx_party_members_district_subdistrict").on(table.district, table.subdistrict),
+    index("idx_party_members_position").on(table.position),
+    index("idx_party_members_nik").on(table.nik),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
@@ -167,3 +208,7 @@ export type NewDocument = typeof documents.$inferInsert;
 export type AutofillEntry = typeof autofillDictionary.$inferSelect;
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 export type NewDocumentTemplate = typeof documentTemplates.$inferInsert;
+
+export type PartyMember = typeof partyMembers.$inferSelect;
+export type NewPartyMember = typeof partyMembers.$inferInsert;
+

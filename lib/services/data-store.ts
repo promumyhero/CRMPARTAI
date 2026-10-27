@@ -5,14 +5,17 @@ import {
   users,
   activities,
   budgetItems,
+  partyMembers,
   type User,
   type Activity,
   type BudgetItem,
   type Document as DocType,
   type AutofillEntry,
   type DocumentTemplate,
+  type PartyMember,
+  type NewPartyMember,
 } from "@/lib/db/schema";
-import { eq, desc, and, isNull } from "drizzle-orm";
+import { eq, desc, and, isNull, or, ilike } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 // Local storage path for offline / development resilience
@@ -26,7 +29,9 @@ interface LocalStoreState {
   documents: DocType[];
   autofillDictionary: AutofillEntry[];
   documentTemplates: DocumentTemplate[];
+  partyMembers: PartyMember[];
 }
+
 
 function getInitialState(): LocalStoreState {
   const now = new Date();
@@ -379,6 +384,7 @@ function getInitialState(): LocalStoreState {
         updatedAt: now,
       },
     ],
+    partyMembers: [],
   };
 }
 
@@ -404,12 +410,16 @@ function loadLocalStore(): LocalStoreState {
         deletedAt: a.deletedAt ? new Date(a.deletedAt) : null,
       }));
     }
+    if (!parsed.partyMembers) {
+      parsed.partyMembers = [];
+    }
     return parsed;
   } catch (err) {
     console.error("Error loading local store:", err);
     return getInitialState();
   }
 }
+
 
 function saveLocalStore(state: LocalStoreState) {
   try {
@@ -983,4 +993,272 @@ export const DataService = {
     saveLocalStore(local);
     return newTmpl;
   },
+
+  // PARTY MEMBERS & CADRES (Manajemen Anggota & Pengurus)
+  async getPartyMembers(filters?: {
+    search?: string;
+    district?: string;
+    subdistrict?: string;
+    position?: string;
+    gender?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ members: PartyMember[]; total: number }> {
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        let query = db.select().from(partyMembers).$dynamic();
+        const conditions = [];
+
+        if (filters?.district) {
+          conditions.push(eq(partyMembers.district, filters.district));
+        }
+        if (filters?.subdistrict) {
+          conditions.push(eq(partyMembers.subdistrict, filters.subdistrict));
+        }
+        if (filters?.position) {
+          conditions.push(eq(partyMembers.position, filters.position));
+        }
+        if (filters?.gender) {
+          conditions.push(eq(partyMembers.gender, filters.gender));
+        }
+        if (filters?.search) {
+          const s = `%${filters.search.trim()}%`;
+          conditions.push(
+            or(
+              ilike(partyMembers.name, s),
+              ilike(partyMembers.ktaNumber, s),
+              ilike(partyMembers.nik, s)
+            )
+          );
+        }
+
+        if (conditions.length > 0) {
+          query = query.where(and(...conditions));
+        }
+
+        const all = await query.orderBy(desc(partyMembers.createdAt));
+        const total = all.length;
+        const offset = filters?.offset ?? 0;
+        const limit = filters?.limit ?? 50;
+        const paginated = all.slice(offset, offset + limit);
+
+        return { members: paginated, total };
+      } catch (err) {
+        console.warn("Postgres query partyMembers failed, falling back to local store:", err);
+      }
+    }
+
+    // Local in-memory / JSON store fallback
+    const local = loadLocalStore();
+    if (!local.partyMembers) local.partyMembers = [];
+    let list = [...local.partyMembers];
+
+    if (filters?.district) {
+      list = list.filter((m) => m.district?.toLowerCase() === filters.district?.toLowerCase());
+    }
+    if (filters?.subdistrict) {
+      list = list.filter((m) => m.subdistrict?.toLowerCase() === filters.subdistrict?.toLowerCase());
+    }
+    if (filters?.position) {
+      list = list.filter((m) => m.position?.toLowerCase() === filters.position?.toLowerCase());
+    }
+    if (filters?.gender) {
+      list = list.filter((m) => m.gender?.toLowerCase() === filters.gender?.toLowerCase());
+    }
+    if (filters?.search) {
+      const q = filters.search.trim().toLowerCase();
+      list = list.filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          m.ktaNumber.toLowerCase().includes(q) ||
+          (m.nik && m.nik.toLowerCase().includes(q)) ||
+          (m.phone && m.phone.toLowerCase().includes(q))
+      );
+    }
+
+    const total = list.length;
+    const offset = filters?.offset ?? 0;
+    const limit = filters?.limit ?? 50;
+    const paginated = list.slice(offset, offset + limit);
+
+    return { members: paginated, total };
+  },
+
+  async getPartyMemberStats(): Promise<{
+    totalMembers: number;
+    totalMale: number;
+    totalFemale: number;
+    femalePercentage: number;
+    totalOfficials: number;
+    totalRegular: number;
+    totalVerified: number;
+    districts: Record<string, number>;
+  }> {
+    const isPg = await checkPg();
+    let allMembers: PartyMember[] = [];
+
+    if (isPg && db) {
+      try {
+        allMembers = await db.select().from(partyMembers);
+      } catch (err) {
+        console.warn("Postgres select stats failed, using local store:", err);
+        const local = loadLocalStore();
+        allMembers = local.partyMembers || [];
+      }
+    } else {
+      const local = loadLocalStore();
+      allMembers = local.partyMembers || [];
+    }
+
+    const totalMembers = allMembers.length;
+    const totalMale = allMembers.filter((m) => m.gender?.toLowerCase().includes("laki")).length;
+    const totalFemale = allMembers.filter((m) => m.gender?.toLowerCase().includes("perempuan")).length;
+    const femalePercentage = totalMembers > 0 ? Number(((totalFemale / totalMembers) * 100).toFixed(1)) : 0;
+
+    const totalRegular = allMembers.filter(
+      (m) => !m.position || m.position.toLowerCase() === "regular" || m.position.toLowerCase() === "anggota"
+    ).length;
+    const totalOfficials = totalMembers - totalRegular;
+
+    const totalVerified = allMembers.filter(
+      (m) =>
+        m.orgVerificationStatus?.toLowerCase().includes("terverifikasi") ||
+        m.dppValidationStatus?.toLowerCase().includes("valid")
+    ).length;
+
+    const districts: Record<string, number> = {};
+    for (const m of allMembers) {
+      const dist = m.district || "Belum Terdata";
+      districts[dist] = (districts[dist] || 0) + 1;
+    }
+
+    return {
+      totalMembers,
+      totalMale,
+      totalFemale,
+      femalePercentage,
+      totalOfficials,
+      totalRegular,
+      totalVerified,
+      districts,
+    };
+  },
+
+  async batchUpsertPartyMembers(
+    items: NewPartyMember[]
+  ): Promise<{ inserted: number; updated: number; total: number }> {
+    const isPg = await checkPg();
+    let inserted = 0;
+    let updated = 0;
+
+    if (isPg && db) {
+      try {
+        for (const item of items) {
+          const existing = await db
+            .select()
+            .from(partyMembers)
+            .where(eq(partyMembers.ktaNumber, item.ktaNumber))
+            .limit(1);
+
+          if (existing.length > 0) {
+            await db
+              .update(partyMembers)
+              .set({ ...item, updatedAt: new Date() })
+              .where(eq(partyMembers.id, existing[0].id));
+            updated++;
+          } else {
+            await db.insert(partyMembers).values(item);
+            inserted++;
+          }
+        }
+        return { inserted, updated, total: items.length };
+      } catch (err) {
+        console.warn("Postgres batchUpsert failed, saving to local store:", err);
+      }
+    }
+
+    // Local fallback
+    const local = loadLocalStore();
+    if (!local.partyMembers) local.partyMembers = [];
+
+    const now = new Date();
+    for (const item of items) {
+      const idx = local.partyMembers.findIndex(
+        (m) => m.ktaNumber.trim() === item.ktaNumber.trim()
+      );
+
+      if (idx !== -1) {
+        local.partyMembers[idx] = {
+          ...local.partyMembers[idx],
+          ...item,
+          updatedAt: now,
+        } as PartyMember;
+        updated++;
+      } else {
+        const newId = local.partyMembers.length
+          ? Math.max(...local.partyMembers.map((m) => m.id)) + 1
+          : 1;
+        const newMember: PartyMember = {
+          id: newId,
+          sourceId: item.sourceId || null,
+          ktaNumber: item.ktaNumber,
+          name: item.name,
+          nik: item.nik || null,
+          gender: item.gender || null,
+          birthPlace: item.birthPlace || null,
+          birthDate: item.birthDate ? String(item.birthDate) : null,
+          maritalStatus: item.maritalStatus || null,
+          nationality: item.nationality || "Indonesia",
+          job: item.job || null,
+          email: item.email || null,
+          isEmailVerified: item.isEmailVerified ?? false,
+          phone: item.phone || null,
+          province: item.province || "KALIMANTAN BARAT",
+          city: item.city || "KOTA PONTIANAK",
+          district: item.district || null,
+          subdistrict: item.subdistrict || null,
+          address: item.address || null,
+          postalCode: item.postalCode || null,
+          position: item.position || "regular",
+          membershipStatus: item.membershipStatus || "Aktif",
+          orgVerificationStatus: item.orgVerificationStatus || "Belum Terverifikasi",
+          dppValidationStatus: item.dppValidationStatus || "Belum Divalidasi DPP",
+          dppDecisionDate: item.dppDecisionDate ? new Date(item.dppDecisionDate) : null,
+          kpuStatusChangeDate: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate) : null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        local.partyMembers.push(newMember);
+        inserted++;
+      }
+    }
+
+    saveLocalStore(local);
+    return { inserted, updated, total: items.length };
+  },
+
+  async deletePartyMember(id: number): Promise<boolean> {
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        await db.delete(partyMembers).where(eq(partyMembers.id, id));
+        return true;
+      } catch (err) {
+        console.warn("Postgres delete failed, deleting from local store:", err);
+      }
+    }
+
+    const local = loadLocalStore();
+    const idx = local.partyMembers.findIndex((m) => m.id === id);
+    if (idx === -1) return false;
+    local.partyMembers.splice(idx, 1);
+    saveLocalStore(local);
+    return true;
+  },
 };
+
+
+export const dataStore = DataService;
+
+

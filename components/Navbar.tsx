@@ -6,11 +6,13 @@ import {
   Calculator,
   FileText,
   Sliders,
+  Users,
   LogOut,
   LogIn,
 } from "lucide-react";
 
-export type ActiveTab = "activities" | "budget" | "documents" | "templates";
+export type ActiveTab = "activities" | "budget" | "documents" | "members" | "templates";
+
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -104,6 +106,17 @@ export function Navbar({
               <span>Format Surat (.docx)</span>
             </button>
             <button
+              onClick={() => onTabChange("members")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
+                activeTab === "members"
+                  ? "bg-white text-blue-600 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Data Anggota & Kader</span>
+            </button>
+            <button
               onClick={() => onTabChange("templates")}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 ${
                 activeTab === "templates"
@@ -189,7 +202,7 @@ export function Navbar({
             }`}
           >
             <Calculator className="w-3.5 h-3.5" />
-            <span>Budget (RAB)</span>
+            <span>Budget</span>
           </button>
           <button
             onClick={() => onTabChange("documents")}
@@ -200,7 +213,18 @@ export function Navbar({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Surat (.docx)</span>
+            <span>Surat</span>
+          </button>
+          <button
+            onClick={() => onTabChange("members")}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+              activeTab === "members"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Kader</span>
           </button>
           <button
             onClick={() => onTabChange("templates")}
@@ -218,3 +242,4 @@ export function Navbar({
     </header>
   );
 }
+

@@ -40,10 +40,15 @@ Sistem aplikasi web modern untuk manajemen partai dan organisasi yang mengintegr
   3. Blok tanda tangan menggunakan *invisible table grid* agar tidak bergeser saat dokumen dibuka atau disunting ulang pengguna.
   4. Tabel RAB dilengkapi atribut `tblHeader: true` dan `cantSplit: true` untuk perulangan baris header otomatis saat tabel memotong halaman baru.
 
-### 4. ⚙️ Template Manager & Pengaturan Lembaga
+### 4. 👥 Modul Direktori Keanggotaan & Kader (Member Directory)
+- **Database Anggota Lengkap**: NIK, Nama lengkap, Nomor KTA, Daerah Pemilihan (Dapil), Nomor Kontak/WhatsApp, Status Keanggotaan, dan Wilayah Domisili.
+- **Import Massal Excel (.xlsx)**: Unggah data kader massal dari lembar kerja Excel dengan pemetaan kolom cerdas dan validasi data terintegrasi.
+- **Pencarian & Filter Cepat**: Penyaringan instan berdasarkan nama, wilayah dapil, atau status keanggotaan.
+
+### 5. ⚙️ Template Manager & Pengaturan Lembaga
 - Kustomisasi kop surat resmi instansi/partai/organisasi, logo, alamat, kontak, nama pejabat penandatangan, NIP/NRP, serta penetapan default format kertas.
 
-### 5. 🔐 Multi-User Authentication & Keamanan Sesi
+### 6. 🔐 Multi-User Authentication & Keamanan Sesi
 - Sesi terenkripsi berbasis JWT (`jose`) dan HTTP-only Secure Cookies.
 - Pemisahan hak akses berbasis peran (*Admin* & *Member*).
 - Kredensial default pengujian: `admin@crmforu.com` / `admin123`.
@@ -62,6 +67,7 @@ crmforu/
 │   │   ├── budget/            # REST API endpoints untuk RAB
 │   │   ├── documents/         # Generator file .docx native OpenXML
 │   │   ├── health/            # Healthcheck database & server
+│   │   ├── members/           # REST API endpoints untuk Data Anggota/Kader
 │   │   └── templates/         # Pengaturan template kop surat
 │   ├── globals.css            # Desain sistem & Tailwind CSS v4 tokens
 │   ├── layout.tsx             # Root layout dengan ToastProvider
@@ -71,6 +77,7 @@ crmforu/
 │   ├── activities/            # Komponen Activity Planner & modal form
 │   ├── budget/                # Komponen RAB & Summary Bar keuangan
 │   ├── documents/             # Editor surat & Live A4/F4 paper preview
+│   ├── members/               # Direktori Anggota, KTA & Modal Import Excel
 │   ├── templates/             # Panel kustomisasi template surat
 │   ├── ui/                    # UI atomics (Toast, Modal, Badges, Tabs)
 │   ├── AuthModal.tsx          # Dialog login & register
@@ -78,7 +85,8 @@ crmforu/
 ├── docs/                      # Dokumentasi & PRD resmi proyek
 ├── lib/
 │   ├── auth/                  # JWT signing, verification & hashing
-│   └── db/                    # Drizzle ORM schema, migrations & resilient store
+│   ├── db/                    # Drizzle ORM schema, migrations & resilient store
+│   └── excel/                 # Parser & validator file Excel (.xlsx) data anggota
 ├── utils/
 │   └── supabase/              # Supabase SSR client, server, and middleware
 ├── docker-compose.yml         # Container PostgreSQL lokal
