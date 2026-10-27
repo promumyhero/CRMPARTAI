@@ -17,10 +17,24 @@ import {
 } from "@/lib/db/schema";
 import { eq, desc, and, isNull, or, ilike, not } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// Local storage path for offline / development resilience
-const DATA_DIR = path.join(process.cwd(), ".data");
+// Local storage path: In Vercel serverless functions, /var/task is read-only, so use /tmp/.data
+const IS_VERCEL = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DATA_DIR = IS_VERCEL ? path.join("/tmp", ".data") : path.join(process.cwd(), ".data");
 const LOCAL_DB_FILE = path.join(DATA_DIR, "store.json");
+
+let supabaseAdminClient: SupabaseClient | null = null;
+export function getSupabaseAdmin(): SupabaseClient | null {
+  if (supabaseAdminClient) return supabaseAdminClient;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (url && key) {
+    supabaseAdminClient = createSupabaseClient(url, key, { auth: { persistSession: false } });
+    return supabaseAdminClient;
+  }
+  return null;
+}
 
 interface LocalStoreState {
   users: User[];
@@ -32,20 +46,73 @@ interface LocalStoreState {
   partyMembers: PartyMember[];
 }
 
-
 function getInitialState(): LocalStoreState {
   const now = new Date();
-  const hashedPassword = bcrypt.hashSync("admin123", 10);
-
   return {
     users: [
       {
         id: 1,
         name: "Administrator Utama (DPD Kalbar)",
         email: "admin@crmforu.com",
-        passwordHash: hashedPassword,
+        passwordHash: "$2b$10$THGCR23Ci4wKkAyRSzLh6uGHaNqo.lNa0/wgIohAIZ50Ke4/kOTXi", // admin123
         role: "superadmin",
-        phone: null,
+        phone: "0812-5555-001",
+        status: "active",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: null,
+        lastLoginAt: null,
+        createdAt: now,
+      },
+      {
+        id: 2,
+        name: "Pengurus Cabang DPC Pontianak",
+        email: "dpc.pontianak@crmforu.com",
+        passwordHash: "$2b$10$.nAhaO3uytzr0czDIGRiAOWTQKk/OUrKkSTS3w8BgFiXWxFgmyhQu", // dpc123
+        role: "admin_dpc",
+        phone: "0812-5555-002",
+        status: "active",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: null,
+        lastLoginAt: null,
+        createdAt: now,
+      },
+      {
+        id: 3,
+        name: "Pengurus PAC Pontianak Kota",
+        email: "pac.pontianakkota@crmforu.com",
+        passwordHash: "$2b$10$fqc1B8pkKqkyyf4xT7G3BuosAfanFPvW3e.faRxMdNlyOdYdimKoC", // pac123
+        role: "admin_pac",
+        phone: "0812-5555-003",
+        status: "active",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: "Pontianak Kota",
+        lastLoginAt: null,
+        createdAt: now,
+      },
+      {
+        id: 4,
+        name: "Staf Operator & KTA",
+        email: "operator@crmforu.com",
+        passwordHash: "$2b$10$c36toDkrNwyHQkSLTj4eT.bxKkEp75Fp4cUIY.VERXlh32dyoqHLu", // operator123
+        role: "operator",
+        phone: "0812-5555-004",
+        status: "active",
+        province: "KALIMANTAN BARAT",
+        city: "KOTA PONTIANAK",
+        district: null,
+        lastLoginAt: null,
+        createdAt: now,
+      },
+      {
+        id: 5,
+        name: "Kader Simpatisan (Viewer)",
+        email: "kader@crmforu.com",
+        passwordHash: "$2b$10$acxan6SVkbxe.NgF2sezbOjIlyzw9eIWz8Ct8WlMvVGVYsRN0ja5C", // kader123
+        role: "viewer",
+        phone: "0812-5555-005",
         status: "active",
         province: "KALIMANTAN BARAT",
         city: "KOTA PONTIANAK",
@@ -394,139 +461,47 @@ function getInitialState(): LocalStoreState {
   };
 }
 
+let inMemoryStore: LocalStoreState | null = null;
+
 function loadLocalStore(): LocalStoreState {
+  if (inMemoryStore) return inMemoryStore;
+
   try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(LOCAL_DB_FILE)) {
-      const initial = getInitialState();
-      fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(initial, null, 2), "utf-8");
-      return initial;
-    }
-    const raw = fs.readFileSync(LOCAL_DB_FILE, "utf-8");
-    const parsed = JSON.parse(raw) as LocalStoreState;
-    if (parsed.activities) {
-      parsed.activities = parsed.activities.map((a) => ({
-        ...a,
-        startDate: new Date(a.startDate),
-        endDate: a.endDate ? new Date(a.endDate) : null,
-        createdAt: new Date(a.createdAt),
-        updatedAt: new Date(a.updatedAt),
-        deletedAt: a.deletedAt ? new Date(a.deletedAt) : null,
-      }));
-    }
-    if (!parsed.partyMembers) {
-      parsed.partyMembers = [];
-    }
-    if (!parsed.users) {
-      parsed.users = [];
-    }
-
-    // Seed default role test accounts if they don't already exist
-    const defaultAccounts: Array<{
-      name: string;
-      email: string;
-      passwordPlain: string;
-      role: string;
-      province?: string;
-      city?: string;
-      district?: string;
-      phone?: string;
-    }> = [
-      {
-        name: "Administrator Utama (DPD Kalbar)",
-        email: "admin@crmforu.com",
-        passwordPlain: "admin123",
-        role: "superadmin",
-        province: "KALIMANTAN BARAT",
-        phone: "0812-5555-001",
-      },
-      {
-        name: "Pengurus Cabang DPC Pontianak",
-        email: "dpc.pontianak@crmforu.com",
-        passwordPlain: "dpc123",
-        role: "admin_dpc",
-        province: "KALIMANTAN BARAT",
-        city: "KOTA PONTIANAK",
-        phone: "0812-5555-002",
-      },
-      {
-        name: "Pengurus PAC Pontianak Kota",
-        email: "pac.pontianakkota@crmforu.com",
-        passwordPlain: "pac123",
-        role: "admin_pac",
-        province: "KALIMANTAN BARAT",
-        city: "KOTA PONTIANAK",
-        district: "Pontianak Kota",
-        phone: "0812-5555-003",
-      },
-      {
-        name: "Staf Operator & KTA",
-        email: "operator@crmforu.com",
-        passwordPlain: "operator123",
-        role: "operator",
-        province: "KALIMANTAN BARAT",
-        city: "KOTA PONTIANAK",
-        phone: "0812-5555-004",
-      },
-      {
-        name: "Kader Simpatisan (Viewer)",
-        email: "kader@crmforu.com",
-        passwordPlain: "kader123",
-        role: "viewer",
-        province: "KALIMANTAN BARAT",
-        city: "KOTA PONTIANAK",
-        phone: "0812-5555-005",
-      },
-    ];
-
-    let hasChanges = false;
-    for (const acc of defaultAccounts) {
-      const existing = parsed.users.find((u) => u.email.toLowerCase() === acc.email.toLowerCase());
-      if (!existing) {
-        const nextId = parsed.users.length ? Math.max(...parsed.users.map((u) => u.id)) + 1 : 1;
-        parsed.users.push({
-          id: nextId,
-          name: acc.name,
-          email: acc.email,
-          passwordHash: bcrypt.hashSync(acc.passwordPlain, 10),
-          role: acc.role,
-          phone: acc.phone || null,
-          status: "active",
-          province: acc.province || "KALIMANTAN BARAT",
-          city: acc.city || "KOTA PONTIANAK",
-          district: acc.district || null,
-          lastLoginAt: null,
-          createdAt: new Date(),
-        } as User);
-        hasChanges = true;
-      } else if (existing.email === "admin@crmforu.com" && existing.role !== "superadmin") {
-        existing.role = "superadmin";
-        hasChanges = true;
+    if (fs.existsSync(LOCAL_DB_FILE)) {
+      const raw = fs.readFileSync(LOCAL_DB_FILE, "utf-8");
+      const parsed = JSON.parse(raw) as LocalStoreState;
+      if (parsed.activities) {
+        parsed.activities = parsed.activities.map((a) => ({
+          ...a,
+          startDate: new Date(a.startDate),
+          endDate: a.endDate ? new Date(a.endDate) : null,
+          createdAt: new Date(a.createdAt),
+          updatedAt: new Date(a.updatedAt),
+          deletedAt: a.deletedAt ? new Date(a.deletedAt) : null,
+        }));
       }
+      if (!parsed.partyMembers) parsed.partyMembers = [];
+      if (!parsed.users) parsed.users = [];
+      inMemoryStore = parsed;
+      return inMemoryStore;
     }
-
-    if (hasChanges) {
-      saveLocalStore(parsed);
-    }
-
-    return parsed;
-  } catch (err) {
-    console.error("Error loading local store:", err);
-    return getInitialState();
+  } catch {
+    // Ignore read errors in restricted serverless environments
   }
+
+  inMemoryStore = getInitialState();
+  return inMemoryStore;
 }
 
-
 function saveLocalStore(state: LocalStoreState) {
+  inMemoryStore = state;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(LOCAL_DB_FILE, JSON.stringify(state, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error saving local store:", err);
+  } catch {
+    // Gracefully ignore filesystem write limitations on serverless platforms
   }
 }
 
@@ -534,6 +509,13 @@ let isPgHealthy: boolean | null = null;
 
 async function checkPg(): Promise<boolean> {
   if (isPgHealthy !== null) return isPgHealthy;
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.includes("localhost:5432")) {
+    if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+      isPgHealthy = false;
+      return false;
+    }
+  }
   const res = await testDbConnection();
   isPgHealthy = res.ok;
   return isPgHealthy;
@@ -563,6 +545,30 @@ export const DataService = {
         console.warn("Falling back to local store for user lookup", e);
       }
     }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("users").select("*").ilike("email", email).maybeSingle();
+        if (data && !error) {
+          return {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            passwordHash: data.password_hash,
+            role: data.role,
+            phone: data.phone,
+            status: data.status,
+            province: data.province,
+            city: data.city,
+            district: data.district,
+            lastLoginAt: data.last_login_at ? new Date(data.last_login_at) : null,
+            createdAt: new Date(data.created_at),
+          };
+        }
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
     return local.users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null;
   },
@@ -575,6 +581,30 @@ export const DataService = {
         if (found.length > 0) return found[0];
       } catch (e) {
         console.warn("Falling back to local store for user lookup", e);
+      }
+    }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("users").select("*").eq("id", id).maybeSingle();
+        if (data && !error) {
+          return {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            passwordHash: data.password_hash,
+            role: data.role,
+            phone: data.phone,
+            status: data.status,
+            province: data.province,
+            city: data.city,
+            district: data.district,
+            lastLoginAt: data.last_login_at ? new Date(data.last_login_at) : null,
+            createdAt: new Date(data.created_at),
+          };
+        }
+      } catch {
+        // fallback
       }
     }
     const local = loadLocalStore();
@@ -604,6 +634,32 @@ export const DataService = {
         if (all.length > 0) return all as Omit<User, "passwordHash">[];
       } catch (e) {
         console.warn("Falling back to local store for user list", e);
+      }
+    }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from("users")
+          .select("id, name, email, role, phone, status, province, city, district, last_login_at, created_at")
+          .order("id");
+        if (data && !error && data.length > 0) {
+          return data.map((u) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            phone: u.phone,
+            status: u.status,
+            province: u.province,
+            city: u.city,
+            district: u.district,
+            lastLoginAt: u.last_login_at ? new Date(u.last_login_at) : null,
+            createdAt: new Date(u.created_at),
+          }));
+        }
+      } catch {
+        // fallback
       }
     }
     const local = loadLocalStore();
@@ -746,6 +802,14 @@ export const DataService = {
         // fallback to local
       }
     }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        await sb.from("users").update({ last_login_at: now.toISOString() }).eq("id", id);
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
     const user = local.users.find((u) => u.id === id);
     if (user) {
@@ -777,6 +841,40 @@ export const DataService = {
         if (res.length > 0) return res;
       } catch (e) {
         console.warn("Postgres query failed, loading local store", e);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        let q = sb.from("activities").select("*").is("deleted_at", null);
+        if (params?.status) q = q.eq("status", params.status);
+        if (params?.search) {
+          const s = params.search.trim();
+          q = q.or(`title.ilike.%${s}%,location.ilike.%${s}%,pic_name.ilike.%${s}%`);
+        }
+        const { data, error } = await q.order("start_date", { ascending: false }).limit(limit);
+        if (!error && data && data.length > 0) {
+          return data.map((a) => ({
+            id: a.id,
+            userId: a.user_id,
+            title: a.title,
+            category: a.category,
+            location: a.location,
+            picName: a.pic_name,
+            status: a.status,
+            startDate: new Date(a.start_date),
+            endDate: a.end_date ? new Date(a.end_date) : null,
+            checklist: a.checklist || [],
+            totalEstimatedBudget: a.total_estimated_budget || "0",
+            totalActualBudget: a.total_actual_budget || "0",
+            createdAt: new Date(a.created_at),
+            updatedAt: new Date(a.updated_at),
+            deletedAt: a.deleted_at ? new Date(a.deleted_at) : null,
+          }));
+        }
+      } catch {
+        // fallback
       }
     }
 
@@ -948,6 +1046,32 @@ export const DataService = {
           .orderBy(desc(budgetItems.id));
       } catch (e) {
         console.warn("Postgres get budget items failed", e);
+      }
+    }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb
+          .from("budget_items")
+          .select("*")
+          .eq("activity_id", activityId)
+          .order("id", { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data.map((b) => ({
+            id: b.id,
+            activityId: b.activity_id,
+            category: b.category,
+            itemName: b.item_name,
+            qty: b.qty,
+            unit: b.unit,
+            unitPrice: b.unit_price,
+            estimatedSubtotal: b.estimated_subtotal,
+            actualSubtotal: b.actual_subtotal || "0.00",
+            createdAt: new Date(b.created_at),
+          }));
+        }
+      } catch {
+        // fallback
       }
     }
     const local = loadLocalStore();
@@ -1126,6 +1250,32 @@ export const DataService = {
 
   // DOCUMENTS
   async getDocuments(params?: { userId?: number; activityId?: number }): Promise<DocType[]> {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        let q = sb.from("documents").select("*").is("deleted_at", null);
+        if (params?.userId) q = q.eq("user_id", params.userId);
+        if (params?.activityId) q = q.eq("activity_id", params.activityId);
+        const { data, error } = await q.order("created_at", { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data.map((d) => ({
+            id: d.id,
+            activityId: d.activity_id,
+            userId: d.user_id,
+            docNumber: d.doc_number,
+            docType: d.doc_type,
+            subject: d.subject,
+            recipientName: d.recipient_name,
+            contentPayload: d.content_payload,
+            issuedDate: d.issued_date,
+            createdAt: new Date(d.created_at),
+            deletedAt: d.deleted_at ? new Date(d.deleted_at) : null,
+          }));
+        }
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
     let list = local.documents.filter((d) => !d.deletedAt);
     if (params?.activityId) {
@@ -1184,6 +1334,35 @@ export const DataService = {
 
   // TEMPLATES
   async getTemplates(): Promise<DocumentTemplate[]> {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("document_templates").select("*").order("id");
+        if (!error && data && data.length > 0) {
+          return data.map((t) => ({
+            id: t.id,
+            userId: t.user_id,
+            name: t.name,
+            docType: t.doc_type,
+            showKop: t.show_kop,
+            headerOrgName: t.header_org_name,
+            headerOrgSub: t.header_org_sub,
+            headerOrgAddress: t.header_org_address,
+            headerContact: t.header_contact,
+            paperSize: t.paper_size,
+            defaultOpening: t.default_opening,
+            defaultClosing: t.default_closing,
+            signerTitle: t.signer_title,
+            signerName: t.signer_name,
+            signerNip: t.signer_nip,
+            createdAt: new Date(t.created_at),
+            updatedAt: new Date(t.updated_at),
+          }));
+        }
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
     return local.documentTemplates;
   },
@@ -1319,6 +1498,67 @@ export const DataService = {
       }
     }
 
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        let q = sb.from("party_members").select("*", { count: "exact" });
+        if (filters?.province) q = q.ilike("province", filters.province);
+        if (filters?.city) q = q.ilike("city", filters.city);
+        if (filters?.district) q = q.ilike("district", `%${filters.district}%`);
+        if (filters?.subdistrict) q = q.ilike("subdistrict", `%${filters.subdistrict}%`);
+        if (filters?.gender) q = q.ilike("gender", filters.gender);
+        if (filters?.position) {
+          if (filters.position.toLowerCase() === "ketua") {
+            q = q.ilike("position", "%ketua%").not("position", "ilike", "%wakil%");
+          } else {
+            q = q.ilike("position", `%${filters.position}%`);
+          }
+        }
+        if (filters?.search) {
+          const s = filters.search.trim();
+          q = q.or(`name.ilike.%${s}%,kta_number.ilike.%${s}%,nik.ilike.%${s}%`);
+        }
+        const offset = filters?.offset ?? 0;
+        const limit = filters?.limit ?? 100;
+        const { data, count, error } = await q.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((m) => ({
+            id: m.id,
+            sourceId: m.source_id,
+            ktaNumber: m.kta_number,
+            name: m.name,
+            nik: m.nik,
+            gender: m.gender,
+            birthPlace: m.birth_place,
+            birthDate: m.birth_date,
+            maritalStatus: m.marital_status,
+            nationality: m.nationality,
+            job: m.job,
+            email: m.email,
+            isEmailVerified: m.is_email_verified,
+            phone: m.phone,
+            province: m.province,
+            city: m.city,
+            district: m.district,
+            subdistrict: m.subdistrict,
+            address: m.address,
+            postalCode: m.postal_code,
+            position: m.position,
+            membershipStatus: m.membership_status,
+            orgVerificationStatus: m.org_verification_status,
+            dppValidationStatus: m.dpp_validation_status,
+            dppDecisionDate: m.dpp_decision_date ? new Date(m.dpp_decision_date) : null,
+            kpuStatusChangeDate: m.kpu_status_change_date ? new Date(m.kpu_status_change_date) : null,
+            createdAt: new Date(m.created_at),
+            updatedAt: new Date(m.updated_at),
+          }));
+          return { members: mapped, total: count ?? mapped.length };
+        }
+      } catch (err) {
+        console.warn("Supabase query partyMembers failed, falling back to local store:", err);
+      }
+    }
+
     // Local in-memory / JSON store fallback
     const local = loadLocalStore();
     if (!local.partyMembers) local.partyMembers = [];
@@ -1403,11 +1643,54 @@ export const DataService = {
       try {
         allMembers = await db.select().from(partyMembers);
       } catch (err) {
-        console.warn("Postgres select stats failed, using local store:", err);
-        const local = loadLocalStore();
-        allMembers = local.partyMembers || [];
+        console.warn("Postgres select stats failed, using Supabase/local store:", err);
       }
-    } else {
+    }
+
+    if (allMembers.length === 0) {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        try {
+          const { data, error } = await sb.from("party_members").select("*").limit(3000);
+          if (!error && data && data.length > 0) {
+            allMembers = data.map((m) => ({
+              id: m.id,
+              sourceId: m.source_id,
+              ktaNumber: m.kta_number,
+              name: m.name,
+              nik: m.nik,
+              gender: m.gender,
+              birthPlace: m.birth_place,
+              birthDate: m.birth_date,
+              maritalStatus: m.marital_status,
+              nationality: m.nationality,
+              job: m.job,
+              email: m.email,
+              isEmailVerified: m.is_email_verified,
+              phone: m.phone,
+              province: m.province,
+              city: m.city,
+              district: m.district,
+              subdistrict: m.subdistrict,
+              address: m.address,
+              postalCode: m.postal_code,
+              position: m.position,
+              membershipStatus: m.membership_status,
+              orgVerificationStatus: m.org_verification_status,
+              dppValidationStatus: m.dpp_validation_status,
+              dppDecisionDate: m.dpp_decision_date ? new Date(m.dpp_decision_date) : null,
+              kpuStatusChangeDate: m.kpu_status_change_date ? new Date(m.kpu_status_change_date) : null,
+              createdAt: new Date(m.created_at),
+              updatedAt: new Date(m.updated_at),
+            }));
+          }
+        } catch {
+          // fallback
+        }
+      }
+    }
+
+    if (allMembers.length === 0) {
       const local = loadLocalStore();
       allMembers = local.partyMembers || [];
     }
