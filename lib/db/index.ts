@@ -12,10 +12,16 @@ const globalForDb = globalThis as unknown as {
 
 export function getPostgresClient() {
   if (!globalForDb.pgClient) {
+    const isSupabase =
+      connectionString.includes("supabase.co") ||
+      connectionString.includes("pooler.supabase.com");
+
     globalForDb.pgClient = postgres(connectionString, {
-      max: 10,
+      max: process.env.NODE_ENV === "production" ? 1 : 10,
       idle_timeout: 20,
-      connect_timeout: 5,
+      connect_timeout: 10,
+      ssl: isSupabase ? "require" : undefined,
+      prepare: false, // Recommended for Supabase transaction pooler (port 6543)
     });
   }
   return globalForDb.pgClient;
