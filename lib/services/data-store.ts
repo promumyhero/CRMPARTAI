@@ -5,6 +5,8 @@ import {
   users,
   activities,
   budgetItems,
+  documents,
+  documentTemplates,
   partyMembers,
   type User,
   type Activity,
@@ -16,7 +18,6 @@ import {
   type NewPartyMember,
 } from "@/lib/db/schema";
 import { eq, desc, and, isNull, or, ilike, not } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Local storage path: In Vercel serverless functions, /var/task is read-only, so use /tmp/.data
@@ -28,12 +29,123 @@ let supabaseAdminClient: SupabaseClient | null = null;
 export function getSupabaseAdmin(): SupabaseClient | null {
   if (supabaseAdminClient) return supabaseAdminClient;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const key =
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (url && key) {
     supabaseAdminClient = createSupabaseClient(url, key, { auth: { persistSession: false } });
     return supabaseAdminClient;
   }
   return null;
+}
+
+interface SupabaseUserRow {
+  id: number;
+  name: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  phone: string | null;
+  status: string;
+  province: string | null;
+  city: string | null;
+  district: string | null;
+  last_login_at: string | null;
+  created_at: string;
+}
+
+interface SupabaseActivityRow {
+  id: number;
+  user_id: number;
+  title: string;
+  category: string;
+  location: string | null;
+  pic_name: string | null;
+  status: number;
+  start_date: string;
+  end_date: string | null;
+  checklist: Array<{ id: string; text: string; done: boolean }> | null;
+  total_estimated_budget: string;
+  total_actual_budget: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+interface SupabaseBudgetItemRow {
+  id: number;
+  activity_id: number;
+  category: string;
+  item_name: string;
+  qty: string;
+  unit: string;
+  unit_price: string;
+  estimated_subtotal: string;
+  actual_subtotal: string | null;
+  created_at: string;
+}
+
+interface SupabaseDocumentRow {
+  id: number;
+  user_id: number;
+  activity_id: number | null;
+  doc_number: string;
+  doc_type: number;
+  subject: string;
+  recipient_name: string;
+  content_payload: DocType["contentPayload"];
+  issued_date: string;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+interface SupabaseTemplateRow {
+  id: number;
+  user_id: number;
+  name: string;
+  doc_type: number;
+  show_kop: boolean;
+  header_org_name: string | null;
+  header_org_sub: string | null;
+  header_org_address: string | null;
+  header_contact: string | null;
+  paper_size: string;
+  default_opening: string | null;
+  default_closing: string | null;
+  signer_title: string | null;
+  signer_name: string | null;
+  signer_nip: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+async function insertSupabaseWithAutoId<T = Record<string, unknown>>(
+  tableName: string,
+  payload: Record<string, unknown>
+): Promise<T | null> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return null;
+
+  try {
+    let res = await sb.from(tableName).insert(payload).select().maybeSingle();
+
+    if (res.error && (res.error.code === "23505" || res.error.message?.includes("duplicate key"))) {
+      const maxRes = await sb.from(tableName).select("id").order("id", { ascending: false }).limit(1);
+      const nextId = (maxRes.data?.[0]?.id || 0) + 1;
+      res = await sb.from(tableName).insert({ ...payload, id: nextId }).select().maybeSingle();
+    }
+
+    if (res.error) {
+      console.warn(`Supabase insert to ${tableName} failed:`, res.error);
+      return null;
+    }
+    return res.data as T;
+  } catch (err) {
+    console.warn(`Exception during Supabase insert to ${tableName}:`, err);
+    return null;
+  }
 }
 
 interface LocalStoreState {
@@ -698,11 +810,48 @@ export const DataService = {
             district: data.district || null,
           })
           .returning();
-        return inserted[0];
+        if (inserted.length > 0) return inserted[0];
       } catch (e) {
-        console.warn("Falling back to local store for user create", e);
+        console.warn("Falling back to Supabase/local store for user create", e);
       }
     }
+
+    // Supabase REST write-through
+    const sbUser = await insertSupabaseWithAutoId<SupabaseUserRow>("users", {
+      name: data.name,
+      email: data.email,
+      password_hash: data.passwordHash,
+      role: data.role || "admin",
+      phone: data.phone || null,
+      status: data.status || "active",
+      province: data.province || "KALIMANTAN BARAT",
+      city: data.city || "KOTA PONTIANAK",
+      district: data.district || null,
+    });
+
+    if (sbUser) {
+      const newUser: User = {
+        id: sbUser.id,
+        name: sbUser.name,
+        email: sbUser.email,
+        passwordHash: sbUser.password_hash,
+        role: sbUser.role,
+        phone: sbUser.phone,
+        status: sbUser.status,
+        province: sbUser.province,
+        city: sbUser.city,
+        district: sbUser.district,
+        lastLoginAt: sbUser.last_login_at ? new Date(sbUser.last_login_at) : null,
+        createdAt: new Date(sbUser.created_at),
+      };
+      const local = loadLocalStore();
+      local.users = local.users.filter((u) => u.id !== newUser.id);
+      local.users.push(newUser);
+      saveLocalStore(local);
+      return newUser;
+    }
+
+    // Local fallback
     const local = loadLocalStore();
     const newUser: User = {
       id: local.users.length ? Math.max(...local.users.map((u) => u.id)) + 1 : 1,
@@ -757,9 +906,51 @@ export const DataService = {
           .returning();
         if (updated.length > 0) return updated[0];
       } catch (e) {
-        console.warn("Falling back to local store for user update", e);
+        console.warn("Falling back to Supabase/local store for user update", e);
       }
     }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const payload: Record<string, unknown> = {};
+        if (data.name !== undefined) payload.name = data.name;
+        if (data.email !== undefined) payload.email = data.email;
+        if (data.passwordHash !== undefined) payload.password_hash = data.passwordHash;
+        if (data.role !== undefined) payload.role = data.role;
+        if (data.phone !== undefined) payload.phone = data.phone;
+        if (data.status !== undefined) payload.status = data.status;
+        if (data.province !== undefined) payload.province = data.province;
+        if (data.city !== undefined) payload.city = data.city;
+        if (data.district !== undefined) payload.district = data.district;
+
+        const { data: updated, error } = await sb.from("users").update(payload).eq("id", id).select().maybeSingle();
+        if (updated && !error) {
+          const u: User = {
+            id: updated.id,
+            name: updated.name,
+            email: updated.email,
+            passwordHash: updated.password_hash,
+            role: updated.role,
+            phone: updated.phone,
+            status: updated.status,
+            province: updated.province,
+            city: updated.city,
+            district: updated.district,
+            lastLoginAt: updated.last_login_at ? new Date(updated.last_login_at) : null,
+            createdAt: new Date(updated.created_at),
+          };
+          const local = loadLocalStore();
+          const idx = local.users.findIndex((x) => x.id === id);
+          if (idx !== -1) local.users[idx] = u;
+          saveLocalStore(local);
+          return u;
+        }
+      } catch (e) {
+        console.warn("Supabase user update failed", e);
+      }
+    }
+
     const local = loadLocalStore();
     const idx = local.users.findIndex((u) => u.id === id);
     if (idx === -1) return null;
@@ -778,9 +969,25 @@ export const DataService = {
         await db.delete(users).where(eq(users.id, id));
         return true;
       } catch (e) {
-        console.warn("Falling back to local store for user delete", e);
+        console.warn("Falling back to Supabase/local store for user delete", e);
       }
     }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { error } = await sb.from("users").delete().eq("id", id);
+        if (!error) {
+          const local = loadLocalStore();
+          local.users = local.users.filter((u) => u.id !== id);
+          saveLocalStore(local);
+          return true;
+        }
+      } catch (e) {
+        console.warn("Supabase user delete failed", e);
+      }
+    }
+
     const local = loadLocalStore();
     const initialLen = local.users.length;
     local.users = local.users.filter((u) => u.id !== id);
@@ -909,6 +1116,35 @@ export const DataService = {
         console.warn("Postgres get activity failed", e);
       }
     }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data: a, error } = await sb.from("activities").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+        if (a && !error) {
+          return {
+            id: a.id,
+            userId: a.user_id,
+            title: a.title,
+            category: a.category,
+            location: a.location,
+            picName: a.pic_name,
+            status: a.status,
+            startDate: new Date(a.start_date),
+            endDate: a.end_date ? new Date(a.end_date) : null,
+            checklist: a.checklist || [],
+            totalEstimatedBudget: String(a.total_estimated_budget || "0"),
+            totalActualBudget: String(a.total_actual_budget || "0"),
+            createdAt: new Date(a.created_at),
+            updatedAt: new Date(a.updated_at),
+            deletedAt: a.deleted_at ? new Date(a.deleted_at) : null,
+          };
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     const local = loadLocalStore();
     return local.activities.find((a) => a.id === id && !a.deletedAt) || null;
   },
@@ -943,11 +1179,53 @@ export const DataService = {
             totalActualBudget: "0.00",
           })
           .returning();
-        return inserted[0];
+        if (inserted.length > 0) return inserted[0];
       } catch (e) {
-        console.warn("Postgres create activity failed", e);
+        console.warn("Postgres create activity failed, trying Supabase REST", e);
       }
     }
+
+    // Supabase REST write-through
+    const sbAct = await insertSupabaseWithAutoId<SupabaseActivityRow>("activities", {
+      user_id: data.userId,
+      title: data.title,
+      category: data.category || "Umum",
+      location: data.location || null,
+      pic_name: data.picName || null,
+      status: data.status ?? 1,
+      start_date: data.startDate instanceof Date ? data.startDate.toISOString() : data.startDate,
+      end_date: data.endDate instanceof Date ? data.endDate.toISOString() : data.endDate || null,
+      checklist: data.checklist || [],
+      total_estimated_budget: "0.00",
+      total_actual_budget: "0.00",
+    });
+
+    if (sbAct) {
+      const newAct: Activity = {
+        id: sbAct.id,
+        userId: sbAct.user_id,
+        title: sbAct.title,
+        category: sbAct.category,
+        location: sbAct.location,
+        picName: sbAct.pic_name,
+        status: sbAct.status,
+        startDate: new Date(sbAct.start_date),
+        endDate: sbAct.end_date ? new Date(sbAct.end_date) : null,
+        checklist: sbAct.checklist || [],
+        totalEstimatedBudget: String(sbAct.total_estimated_budget || "0"),
+        totalActualBudget: String(sbAct.total_actual_budget || "0"),
+        createdAt: new Date(sbAct.created_at),
+        updatedAt: new Date(sbAct.updated_at),
+        deletedAt: sbAct.deleted_at ? new Date(sbAct.deleted_at) : null,
+      };
+      const local = loadLocalStore();
+      local.activities = local.activities.filter((a) => a.id !== newAct.id);
+      local.activities.unshift(newAct);
+      saveLocalStore(local);
+      return newAct;
+    }
+
+    // Local fallback
     const local = loadLocalStore();
     const newId = local.activities.length ? Math.max(...local.activities.map((a) => a.id)) + 1 : 1;
     const now = new Date();
@@ -1004,6 +1282,56 @@ export const DataService = {
         console.warn("Postgres update activity failed", e);
       }
     }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (data.title !== undefined) payload.title = data.title;
+        if (data.category !== undefined) payload.category = data.category;
+        if (data.location !== undefined) payload.location = data.location;
+        if (data.picName !== undefined) payload.pic_name = data.picName;
+        if (data.status !== undefined) payload.status = data.status;
+        if (data.startDate !== undefined) {
+          payload.start_date = data.startDate instanceof Date ? data.startDate.toISOString() : data.startDate;
+        }
+        if (data.endDate !== undefined) {
+          payload.end_date = data.endDate instanceof Date ? data.endDate.toISOString() : data.endDate;
+        }
+        if (data.checklist !== undefined) payload.checklist = data.checklist;
+        if (data.totalEstimatedBudget !== undefined) payload.total_estimated_budget = data.totalEstimatedBudget;
+        if (data.totalActualBudget !== undefined) payload.total_actual_budget = data.totalActualBudget;
+
+        const { data: updated, error } = await sb.from("activities").update(payload).eq("id", id).select().maybeSingle();
+        if (updated && !error) {
+          const act: Activity = {
+            id: updated.id,
+            userId: updated.user_id,
+            title: updated.title,
+            category: updated.category,
+            location: updated.location,
+            picName: updated.pic_name,
+            status: updated.status,
+            startDate: new Date(updated.start_date),
+            endDate: updated.end_date ? new Date(updated.end_date) : null,
+            checklist: updated.checklist || [],
+            totalEstimatedBudget: String(updated.total_estimated_budget || "0"),
+            totalActualBudget: String(updated.total_actual_budget || "0"),
+            createdAt: new Date(updated.created_at),
+            updatedAt: new Date(updated.updated_at),
+            deletedAt: updated.deleted_at ? new Date(updated.deleted_at) : null,
+          };
+          const local = loadLocalStore();
+          const idx = local.activities.findIndex((a) => a.id === id);
+          if (idx !== -1) local.activities[idx] = act;
+          saveLocalStore(local);
+          return act;
+        }
+      } catch (e) {
+        console.warn("Supabase update activity failed", e);
+      }
+    }
+
     const local = loadLocalStore();
     const idx = local.activities.findIndex((a) => a.id === id);
     if (idx === -1) return null;
@@ -1026,6 +1354,23 @@ export const DataService = {
         console.warn("Postgres soft delete activity failed", e);
       }
     }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { error } = await sb.from("activities").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+        if (!error) {
+          const local = loadLocalStore();
+          const act = local.activities.find((a) => a.id === id);
+          if (act) act.deletedAt = new Date();
+          saveLocalStore(local);
+          return true;
+        }
+      } catch (e) {
+        console.warn("Supabase soft delete activity failed", e);
+      }
+    }
+
     const local = loadLocalStore();
     const act = local.activities.find((a) => a.id === id);
     if (!act) return false;
@@ -1093,9 +1438,9 @@ export const DataService = {
     const actSubtotal = (parseFloat(String(data.actualSubtotal)) || 0).toFixed(2);
 
     const isPg = await checkPg();
-    let createdItem: BudgetItem;
+    let createdItem: BudgetItem | null = null;
 
-    if (isPg) {
+    if (isPg && db) {
       try {
         const inserted = await db
           .insert(budgetItems)
@@ -1110,27 +1455,68 @@ export const DataService = {
             actualSubtotal: actSubtotal,
           })
           .returning();
-        createdItem = inserted[0];
+        if (inserted.length > 0) createdItem = inserted[0];
       } catch (e) {
         console.warn("Postgres create budget item failed", e);
       }
     }
 
+    if (!createdItem) {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        try {
+          const inserted = await insertSupabaseWithAutoId<SupabaseBudgetItemRow>("budget_items", {
+            activity_id: data.activityId,
+            category: data.category,
+            item_name: data.itemName,
+            qty: String(qtyNum),
+            unit: data.unit,
+            unit_price: String(priceNum),
+            estimated_subtotal: estSubtotal,
+            actual_subtotal: actSubtotal,
+          });
+          if (inserted) {
+            createdItem = {
+              id: inserted.id,
+              activityId: inserted.activity_id,
+              category: inserted.category,
+              itemName: inserted.item_name,
+              qty: inserted.qty,
+              unit: inserted.unit,
+              unitPrice: inserted.unit_price,
+              estimatedSubtotal: inserted.estimated_subtotal,
+              actualSubtotal: inserted.actual_subtotal || "0.00",
+              createdAt: new Date(inserted.created_at),
+            };
+          }
+        } catch (e) {
+          console.warn("Supabase create budget item failed", e);
+        }
+      }
+    }
+
     const local = loadLocalStore();
-    const newId = local.budgetItems.length ? Math.max(...local.budgetItems.map((b) => b.id)) + 1 : 1;
-    createdItem = {
-      id: newId,
-      activityId: data.activityId,
-      category: data.category,
-      itemName: data.itemName,
-      qty: String(qtyNum),
-      unit: data.unit,
-      unitPrice: String(priceNum),
-      estimatedSubtotal: estSubtotal,
-      actualSubtotal: actSubtotal,
-      createdAt: new Date(),
-    };
-    local.budgetItems.push(createdItem);
+    const newId = createdItem ? createdItem.id : (local.budgetItems.length ? Math.max(...local.budgetItems.map((b) => b.id)) + 1 : 1);
+    if (!createdItem) {
+      createdItem = {
+        id: newId,
+        activityId: data.activityId,
+        category: data.category,
+        itemName: data.itemName,
+        qty: String(qtyNum),
+        unit: data.unit,
+        unitPrice: String(priceNum),
+        estimatedSubtotal: estSubtotal,
+        actualSubtotal: actSubtotal,
+        createdAt: new Date(),
+      };
+    }
+    const existingIdx = local.budgetItems.findIndex((b) => b.id === createdItem!.id);
+    if (existingIdx !== -1) {
+      local.budgetItems[existingIdx] = createdItem;
+    } else {
+      local.budgetItems.push(createdItem);
+    }
     saveLocalStore(local);
 
     await this.syncActivityBudgetTotals(data.activityId);
@@ -1156,39 +1542,129 @@ export const DataService = {
       actualSubtotal: number | string;
     }>
   ): Promise<BudgetItem | null> {
+    const isPg = await checkPg();
+    let updatedItem: BudgetItem | null = null;
+    const qtyNum = data.qty !== undefined ? parseFloat(String(data.qty)) || 1 : undefined;
+    const priceNum = data.unitPrice !== undefined ? parseFloat(String(data.unitPrice)) || 0 : undefined;
+
+    if (isPg && db) {
+      try {
+        const updateVals: Record<string, unknown> = {};
+        if (data.category !== undefined) updateVals.category = data.category;
+        if (data.itemName !== undefined) updateVals.itemName = data.itemName;
+        if (qtyNum !== undefined) updateVals.qty = String(qtyNum);
+        if (data.unit !== undefined) updateVals.unit = data.unit;
+        if (priceNum !== undefined) updateVals.unitPrice = String(priceNum);
+        if (data.actualSubtotal !== undefined) updateVals.actualSubtotal = (parseFloat(String(data.actualSubtotal)) || 0).toFixed(2);
+        if (qtyNum !== undefined && priceNum !== undefined) {
+          updateVals.estimatedSubtotal = (qtyNum * priceNum).toFixed(2);
+        }
+        const res = await db.update(budgetItems).set(updateVals).where(eq(budgetItems.id, id)).returning();
+        if (res.length > 0) updatedItem = res[0];
+      } catch (e) {
+        console.warn("Postgres update budget item failed:", e);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const payload: Record<string, unknown> = {};
+        if (data.category !== undefined) payload.category = data.category;
+        if (data.itemName !== undefined) payload.item_name = data.itemName;
+        if (data.unit !== undefined) payload.unit = data.unit;
+        if (qtyNum !== undefined) payload.qty = String(qtyNum);
+        if (priceNum !== undefined) payload.unit_price = String(priceNum);
+        if (data.actualSubtotal !== undefined) payload.actual_subtotal = (parseFloat(String(data.actualSubtotal)) || 0).toFixed(2);
+        if (qtyNum !== undefined && priceNum !== undefined) {
+          payload.estimated_subtotal = (qtyNum * priceNum).toFixed(2);
+        }
+        const { data: sbRes, error } = await sb.from("budget_items").update(payload).eq("id", id).select().maybeSingle();
+        if (!error && sbRes && !updatedItem) {
+          updatedItem = {
+            id: sbRes.id,
+            activityId: sbRes.activity_id,
+            category: sbRes.category,
+            itemName: sbRes.item_name,
+            qty: sbRes.qty,
+            unit: sbRes.unit,
+            unitPrice: sbRes.unit_price,
+            estimatedSubtotal: sbRes.estimated_subtotal,
+            actualSubtotal: sbRes.actual_subtotal || "0.00",
+            createdAt: new Date(sbRes.created_at),
+          };
+        }
+      } catch (e) {
+        console.warn("Supabase update budget item failed:", e);
+      }
+    }
+
     const local = loadLocalStore();
     const existing = local.budgetItems.find((b) => b.id === id);
-    if (!existing) return null;
+    if (existing) {
+      const q = data.qty !== undefined ? parseFloat(String(data.qty)) || 1 : parseFloat(existing.qty);
+      const p = data.unitPrice !== undefined ? parseFloat(String(data.unitPrice)) || 0 : parseFloat(existing.unitPrice);
+      const est = (q * p).toFixed(2);
+      const act = data.actualSubtotal !== undefined ? (parseFloat(String(data.actualSubtotal)) || 0).toFixed(2) : existing.actualSubtotal;
 
-    const qtyNum = data.qty !== undefined ? parseFloat(String(data.qty)) || 1 : parseFloat(existing.qty);
-    const priceNum = data.unitPrice !== undefined ? parseFloat(String(data.unitPrice)) || 0 : parseFloat(existing.unitPrice);
-    const estSubtotal = (qtyNum * priceNum).toFixed(2);
-    const actSubtotal = data.actualSubtotal !== undefined
-      ? (parseFloat(String(data.actualSubtotal)) || 0).toFixed(2)
-      : existing.actualSubtotal;
+      existing.category = data.category ?? existing.category;
+      existing.itemName = data.itemName ?? existing.itemName;
+      existing.qty = String(q);
+      existing.unit = data.unit ?? existing.unit;
+      existing.unitPrice = String(p);
+      existing.estimatedSubtotal = est;
+      existing.actualSubtotal = act;
 
-    existing.category = data.category ?? existing.category;
-    existing.itemName = data.itemName ?? existing.itemName;
-    existing.qty = String(qtyNum);
-    existing.unit = data.unit ?? existing.unit;
-    existing.unitPrice = String(priceNum);
-    existing.estimatedSubtotal = estSubtotal;
-    existing.actualSubtotal = actSubtotal;
+      saveLocalStore(local);
+      await this.syncActivityBudgetTotals(existing.activityId);
+      return updatedItem || existing;
+    }
 
-    saveLocalStore(local);
-    await this.syncActivityBudgetTotals(existing.activityId);
+    if (updatedItem) {
+      await this.syncActivityBudgetTotals(updatedItem.activityId);
+      return updatedItem;
+    }
 
-    return existing;
+    return null;
   },
 
   async deleteBudgetItem(id: number): Promise<boolean> {
+    let activityId: number | null = null;
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        const item = await db.select().from(budgetItems).where(eq(budgetItems.id, id)).limit(1);
+        if (item.length > 0) activityId = item[0].activityId;
+        await db.delete(budgetItems).where(eq(budgetItems.id, id));
+      } catch (e) {
+        console.warn("Postgres delete budget item failed:", e);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        if (!activityId) {
+          const { data } = await sb.from("budget_items").select("activity_id").eq("id", id).maybeSingle();
+          if (data) activityId = data.activity_id;
+        }
+        await sb.from("budget_items").delete().eq("id", id);
+      } catch (e) {
+        console.warn("Supabase delete budget item failed:", e);
+      }
+    }
+
     const local = loadLocalStore();
     const idx = local.budgetItems.findIndex((b) => b.id === id);
-    if (idx === -1) return false;
-    const actId = local.budgetItems[idx].activityId;
-    local.budgetItems.splice(idx, 1);
-    saveLocalStore(local);
-    await this.syncActivityBudgetTotals(actId);
+    if (idx !== -1) {
+      if (!activityId) activityId = local.budgetItems[idx].activityId;
+      local.budgetItems.splice(idx, 1);
+      saveLocalStore(local);
+    }
+
+    if (activityId) {
+      await this.syncActivityBudgetTotals(activityId);
+    }
     return true;
   },
 
@@ -1208,8 +1684,31 @@ export const DataService = {
 
   // AUTOFILL DICTIONARY
   async getAutofillSuggestions(userId: number, fieldType: string, query?: string): Promise<AutofillEntry[]> {
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        let q = sb.from("autofill_dictionary").select("*").eq("field_type", fieldType);
+        if (query) {
+          q = q.ilike("value_text", `%${query.trim()}%`);
+        }
+        const { data, error } = await q.order("usage_count", { ascending: false }).limit(20);
+        if (!error && data && data.length > 0) {
+          return data.map((a) => ({
+            id: a.id,
+            userId: a.user_id,
+            fieldType: a.field_type,
+            valueText: a.value_text,
+            metadata: a.metadata,
+            usageCount: a.usage_count,
+            lastUsedAt: new Date(a.last_used_at),
+          }));
+        }
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
-    let list = local.autofillDictionary.filter((a) => a.fieldType === fieldType);
+    let list = (local.autofillDictionary || []).filter((a) => a.fieldType === fieldType);
     if (query) {
       const q = query.toLowerCase();
       list = list.filter((a) => a.valueText.toLowerCase().includes(q));
@@ -1224,14 +1723,54 @@ export const DataService = {
     metadata?: { lastUnit?: string; lastPrice?: number; category?: string }
   ) {
     if (!valueText || !valueText.trim()) return;
-    const local = loadLocalStore();
     const val = valueText.trim();
+    const now = new Date();
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data: existing } = await sb
+          .from("autofill_dictionary")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("field_type", fieldType)
+          .ilike("value_text", val)
+          .maybeSingle();
+
+        if (existing) {
+          const nextCount = (existing.usage_count || 1) + 1;
+          const mergedMeta = metadata ? { ...(existing.metadata || {}), ...metadata } : existing.metadata;
+          await sb
+            .from("autofill_dictionary")
+            .update({
+              usage_count: nextCount,
+              last_used_at: now.toISOString(),
+              metadata: mergedMeta,
+            })
+            .eq("id", existing.id);
+        } else {
+          await insertSupabaseWithAutoId("autofill_dictionary", {
+            user_id: userId,
+            field_type: fieldType,
+            value_text: val,
+            metadata: metadata || {},
+            usage_count: 1,
+            last_used_at: now.toISOString(),
+          });
+        }
+      } catch (e) {
+        console.warn("Supabase recordAutofillUsage failed:", e);
+      }
+    }
+
+    const local = loadLocalStore();
+    if (!local.autofillDictionary) local.autofillDictionary = [];
     const existing = local.autofillDictionary.find(
       (a) => a.fieldType === fieldType && a.valueText.toLowerCase() === val.toLowerCase()
     );
     if (existing) {
       existing.usageCount += 1;
-      existing.lastUsedAt = new Date();
+      existing.lastUsedAt = now;
       if (metadata) existing.metadata = { ...existing.metadata, ...metadata };
     } else {
       const newId = local.autofillDictionary.length ? Math.max(...local.autofillDictionary.map((a) => a.id)) + 1 : 1;
@@ -1242,7 +1781,7 @@ export const DataService = {
         valueText: val,
         metadata: metadata || {},
         usageCount: 1,
-        lastUsedAt: new Date(),
+        lastUsedAt: now,
       });
     }
     saveLocalStore(local);
@@ -1285,8 +1824,40 @@ export const DataService = {
   },
 
   async getDocumentById(id: number): Promise<DocType | null> {
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        const d = await db.select().from(documents).where(and(eq(documents.id, id), isNull(documents.deletedAt))).limit(1);
+        if (d.length > 0) return d[0];
+      } catch (e) {
+        console.warn("Postgres getDocumentById failed:", e);
+      }
+    }
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("documents").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
+        if (!error && data) {
+          return {
+            id: data.id,
+            activityId: data.activity_id,
+            userId: data.user_id,
+            docNumber: data.doc_number,
+            docType: data.doc_type,
+            subject: data.subject,
+            recipientName: data.recipient_name,
+            contentPayload: data.content_payload,
+            issuedDate: data.issued_date,
+            createdAt: new Date(data.created_at),
+            deletedAt: data.deleted_at ? new Date(data.deleted_at) : null,
+          };
+        }
+      } catch {
+        // fallback
+      }
+    }
     const local = loadLocalStore();
-    return local.documents.find((d) => d.id === id && !d.deletedAt) || null;
+    return (local.documents || []).find((d) => d.id === id && !d.deletedAt) || null;
   },
 
   async createDocument(data: {
@@ -1299,36 +1870,126 @@ export const DataService = {
     contentPayload: DocType["contentPayload"];
     issuedDate?: string;
   }): Promise<DocType> {
-    const local = loadLocalStore();
-    const newId = local.documents.length ? Math.max(...local.documents.map((d) => d.id)) + 1 : 1;
     const now = new Date();
-    const newDoc: DocType = {
-      id: newId,
-      userId: data.userId,
-      activityId: data.activityId || null,
-      docNumber: data.docNumber,
-      docType: data.docType,
-      subject: data.subject,
-      recipientName: data.recipientName,
-      contentPayload: data.contentPayload,
-      issuedDate: data.issuedDate || now.toISOString().split("T")[0],
-      createdAt: now,
-      deletedAt: null,
-    };
-    local.documents.unshift(newDoc);
+    const issued = data.issuedDate || now.toISOString().split("T")[0];
+    let createdDoc: DocType | null = null;
+
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        const inserted = await db
+          .insert(documents)
+          .values({
+            userId: data.userId,
+            activityId: data.activityId || null,
+            docNumber: data.docNumber,
+            docType: data.docType,
+            subject: data.subject,
+            recipientName: data.recipientName,
+            contentPayload: data.contentPayload,
+            issuedDate: issued,
+          })
+          .returning();
+        if (inserted.length > 0) createdDoc = inserted[0];
+      } catch (e) {
+        console.warn("Postgres create document failed:", e);
+      }
+    }
+
+    if (!createdDoc) {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        try {
+          const inserted = await insertSupabaseWithAutoId<SupabaseDocumentRow>("documents", {
+            user_id: data.userId,
+            activity_id: data.activityId || null,
+            doc_number: data.docNumber,
+            doc_type: data.docType,
+            subject: data.subject,
+            recipient_name: data.recipientName,
+            content_payload: data.contentPayload,
+            issued_date: issued,
+          });
+          if (inserted) {
+            createdDoc = {
+              id: inserted.id,
+              userId: inserted.user_id,
+              activityId: inserted.activity_id,
+              docNumber: inserted.doc_number,
+              docType: inserted.doc_type,
+              subject: inserted.subject,
+              recipientName: inserted.recipient_name,
+              contentPayload: inserted.content_payload,
+              issuedDate: inserted.issued_date,
+              createdAt: new Date(inserted.created_at),
+              deletedAt: inserted.deleted_at ? new Date(inserted.deleted_at) : null,
+            };
+          }
+        } catch (e) {
+          console.warn("Supabase create document failed:", e);
+        }
+      }
+    }
+
+    const local = loadLocalStore();
+    if (!local.documents) local.documents = [];
+    const newId = createdDoc ? createdDoc.id : (local.documents.length ? Math.max(...local.documents.map((d) => d.id)) + 1 : 1);
+    if (!createdDoc) {
+      createdDoc = {
+        id: newId,
+        userId: data.userId,
+        activityId: data.activityId || null,
+        docNumber: data.docNumber,
+        docType: data.docType,
+        subject: data.subject,
+        recipientName: data.recipientName,
+        contentPayload: data.contentPayload,
+        issuedDate: issued,
+        createdAt: now,
+        deletedAt: null,
+      };
+    }
+    const idx = local.documents.findIndex((d) => d.id === createdDoc!.id);
+    if (idx !== -1) {
+      local.documents[idx] = createdDoc;
+    } else {
+      local.documents.unshift(createdDoc);
+    }
     saveLocalStore(local);
 
     await this.recordAutofillUsage(data.userId, "recipient", data.recipientName);
 
-    return newDoc;
+    return createdDoc;
   },
 
   async deleteDocument(id: number): Promise<boolean> {
+    const now = new Date();
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        await db.update(documents).set({ deletedAt: now }).where(eq(documents.id, id));
+      } catch (e) {
+        console.warn("Postgres delete document failed:", e);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        await sb.from("documents").update({ deleted_at: now.toISOString() }).eq("id", id);
+      } catch (e) {
+        console.warn("Supabase delete document failed:", e);
+      }
+    }
+
     const local = loadLocalStore();
-    const doc = local.documents.find((d) => d.id === id);
-    if (!doc) return false;
-    doc.deletedAt = new Date();
-    saveLocalStore(local);
+    if (local.documents) {
+      const doc = local.documents.find((d) => d.id === id);
+      if (doc) {
+        doc.deletedAt = now;
+        saveLocalStore(local);
+      }
+    }
     return true;
   },
 
@@ -1368,13 +2029,173 @@ export const DataService = {
   },
 
   async getTemplateById(id: number): Promise<DocumentTemplate | null> {
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        const t = await db.select().from(documentTemplates).where(eq(documentTemplates.id, id)).limit(1);
+        if (t.length > 0) return t[0];
+      } catch (e) {
+        console.warn("Postgres getTemplateById failed:", e);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from("document_templates").select("*").eq("id", id).maybeSingle();
+        if (!error && data) {
+          return {
+            id: data.id,
+            userId: data.user_id,
+            name: data.name,
+            docType: data.doc_type,
+            showKop: data.show_kop,
+            headerOrgName: data.header_org_name,
+            headerOrgSub: data.header_org_sub,
+            headerOrgAddress: data.header_org_address,
+            headerContact: data.header_contact,
+            paperSize: data.paper_size,
+            defaultOpening: data.default_opening,
+            defaultClosing: data.default_closing,
+            signerTitle: data.signer_title,
+            signerName: data.signer_name,
+            signerNip: data.signerNip,
+            createdAt: new Date(data.created_at),
+            updatedAt: new Date(data.updated_at),
+          };
+        }
+      } catch {
+        // fallback
+      }
+    }
+
     const local = loadLocalStore();
-    return local.documentTemplates.find((t) => t.id === id) || null;
+    return (local.documentTemplates || []).find((t) => t.id === id) || null;
   },
 
   async saveTemplate(data: Partial<DocumentTemplate> & { name: string; userId: number }): Promise<DocumentTemplate> {
-    const local = loadLocalStore();
     const now = new Date();
+    let savedTemplate: DocumentTemplate | null = null;
+
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        if (data.id) {
+          const res = await db.update(documentTemplates).set({ ...data, updatedAt: now }).where(eq(documentTemplates.id, data.id)).returning();
+          if (res.length > 0) savedTemplate = res[0];
+        } else {
+          const res = await db.insert(documentTemplates).values({
+            userId: data.userId,
+            name: data.name,
+            docType: data.docType ?? 1,
+            showKop: data.showKop ?? true,
+            headerOrgName: data.headerOrgName || null,
+            headerOrgSub: data.headerOrgSub || null,
+            headerOrgAddress: data.headerOrgAddress || null,
+            headerContact: data.headerContact || null,
+            paperSize: data.paperSize || "A4",
+            defaultOpening: data.defaultOpening || "Dengan hormat,",
+            defaultClosing: data.defaultClosing || "Demikian surat ini kami sampaikan...",
+            signerTitle: data.signerTitle || "Hormat Kami,",
+            signerName: data.signerName || "Nama Pejabat",
+            signerNip: data.signerNip || null,
+          }).returning();
+          if (res.length > 0) savedTemplate = res[0];
+        }
+      } catch (e) {
+        console.warn("Postgres saveTemplate failed:", e);
+      }
+    }
+
+    if (!savedTemplate) {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        try {
+          if (data.id) {
+            const updatePayload: Record<string, unknown> = { updated_at: now.toISOString() };
+            if (data.name !== undefined) updatePayload.name = data.name;
+            if (data.docType !== undefined) updatePayload.doc_type = data.docType;
+            if (data.showKop !== undefined) updatePayload.show_kop = data.showKop;
+            if (data.headerOrgName !== undefined) updatePayload.header_org_name = data.headerOrgName;
+            if (data.headerOrgSub !== undefined) updatePayload.header_org_sub = data.headerOrgSub;
+            if (data.headerOrgAddress !== undefined) updatePayload.header_org_address = data.headerOrgAddress;
+            if (data.headerContact !== undefined) updatePayload.header_contact = data.headerContact;
+            if (data.paperSize !== undefined) updatePayload.paper_size = data.paperSize;
+            if (data.defaultOpening !== undefined) updatePayload.default_opening = data.defaultOpening;
+            if (data.defaultClosing !== undefined) updatePayload.default_closing = data.defaultClosing;
+            if (data.signerTitle !== undefined) updatePayload.signer_title = data.signerTitle;
+            if (data.signerName !== undefined) updatePayload.signer_name = data.signerName;
+            if (data.signerNip !== undefined) updatePayload.signer_nip = data.signerNip;
+
+            const { data: res, error } = await sb.from("document_templates").update(updatePayload).eq("id", data.id).select().maybeSingle();
+            if (!error && res) {
+              savedTemplate = {
+                id: res.id,
+                userId: res.user_id,
+                name: res.name,
+                docType: res.doc_type,
+                showKop: res.show_kop,
+                headerOrgName: res.header_org_name,
+                headerOrgSub: res.header_org_sub,
+                headerOrgAddress: res.header_org_address,
+                headerContact: res.header_contact,
+                paperSize: res.paper_size,
+                defaultOpening: res.default_opening,
+                defaultClosing: res.default_closing,
+                signerTitle: res.signer_title,
+                signerName: res.signer_name,
+                signerNip: res.signer_nip,
+                createdAt: new Date(res.created_at),
+                updatedAt: new Date(res.updated_at),
+              };
+            }
+          } else {
+            const res = await insertSupabaseWithAutoId<SupabaseTemplateRow>("document_templates", {
+              user_id: data.userId,
+              name: data.name,
+              doc_type: data.docType ?? 1,
+              show_kop: data.showKop ?? true,
+              header_org_name: data.headerOrgName || null,
+              header_org_sub: data.headerOrgSub || null,
+              header_org_address: data.headerOrgAddress || null,
+              header_contact: data.headerContact || null,
+              paper_size: data.paperSize || "A4",
+              default_opening: data.defaultOpening || "Dengan hormat,",
+              default_closing: data.defaultClosing || "Demikian surat ini kami sampaikan...",
+              signer_title: data.signerTitle || "Hormat Kami,",
+              signer_name: data.signerName || "Nama Pejabat",
+              signer_nip: data.signerNip || null,
+            });
+            if (res) {
+              savedTemplate = {
+                id: res.id,
+                userId: res.user_id,
+                name: res.name,
+                docType: res.doc_type,
+                showKop: res.show_kop,
+                headerOrgName: res.header_org_name,
+                headerOrgSub: res.header_org_sub,
+                headerOrgAddress: res.header_org_address,
+                headerContact: res.header_contact,
+                paperSize: res.paper_size,
+                defaultOpening: res.default_opening,
+                defaultClosing: res.default_closing,
+                signerTitle: res.signer_title,
+                signerName: res.signer_name,
+                signerNip: res.signer_nip,
+                createdAt: new Date(res.created_at),
+                updatedAt: new Date(res.updated_at),
+              };
+            }
+          }
+        } catch (e) {
+          console.warn("Supabase saveTemplate failed:", e);
+        }
+      }
+    }
+
+    const local = loadLocalStore();
+    if (!local.documentTemplates) local.documentTemplates = [];
     if (data.id) {
       const idx = local.documentTemplates.findIndex((t) => t.id === data.id);
       if (idx !== -1) {
@@ -1384,11 +2205,12 @@ export const DataService = {
           updatedAt: now,
         } as DocumentTemplate;
         saveLocalStore(local);
-        return local.documentTemplates[idx];
+        return savedTemplate || local.documentTemplates[idx];
       }
     }
-    const newId = local.documentTemplates.length ? Math.max(...local.documentTemplates.map((t) => t.id)) + 1 : 1;
-    const newTmpl: DocumentTemplate = {
+
+    const newId = savedTemplate ? savedTemplate.id : (local.documentTemplates.length ? Math.max(...local.documentTemplates.map((t) => t.id)) + 1 : 1);
+    const newTmpl: DocumentTemplate = savedTemplate || {
       id: newId,
       userId: data.userId,
       name: data.name,
@@ -1791,6 +2613,43 @@ export const DataService = {
       }
     }
 
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        const rows = items.map((item) => ({
+          kta_number: item.ktaNumber,
+          source_id: item.sourceId || null,
+          name: item.name,
+          nik: item.nik || null,
+          gender: item.gender || null,
+          birth_place: item.birthPlace || null,
+          birth_date: item.birthDate ? String(item.birthDate) : null,
+          marital_status: item.maritalStatus || null,
+          nationality: item.nationality || "Indonesia",
+          job: item.job || null,
+          email: item.email || null,
+          is_email_verified: item.isEmailVerified ?? false,
+          phone: item.phone || null,
+          province: item.province || "KALIMANTAN BARAT",
+          city: item.city || "KOTA PONTIANAK",
+          district: item.district || null,
+          subdistrict: item.subdistrict || null,
+          address: item.address || null,
+          postal_code: item.postalCode || null,
+          position: item.position || "regular",
+          membership_status: item.membershipStatus || "Aktif",
+          org_verification_status: item.orgVerificationStatus || "Belum Terverifikasi",
+          dpp_validation_status: item.dppValidationStatus || "Belum Divalidasi DPP",
+          dpp_decision_date: item.dppDecisionDate ? new Date(item.dppDecisionDate).toISOString() : null,
+          kpu_status_change_date: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate).toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }));
+        await sb.from("party_members").upsert(rows, { onConflict: "kta_number" });
+      } catch (err) {
+        console.warn("Supabase batchUpsert failed:", err);
+      }
+    }
+
     // Local fallback
     const local = loadLocalStore();
     if (!local.partyMembers) local.partyMembers = [];
@@ -1859,6 +2718,15 @@ export const DataService = {
         return true;
       } catch (err) {
         console.warn("Postgres delete failed, deleting from local store:", err);
+      }
+    }
+
+    const sb = getSupabaseAdmin();
+    if (sb) {
+      try {
+        await sb.from("party_members").delete().eq("id", id);
+      } catch (err) {
+        console.warn("Supabase delete party member failed:", err);
       }
     }
 
