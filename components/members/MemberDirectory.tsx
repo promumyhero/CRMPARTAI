@@ -175,10 +175,13 @@ export function MemberDirectory() {
     }
   }, [search, province, city, district, subdistrict, position, gender]);
 
-  // Reset pagination to page 1 on filter or page size changes
-  useEffect(() => {
+  // Reset pagination to page 1 on filter or page size changes without effect cascade
+  const filterKey = `${search}_${province}_${city}_${district}_${subdistrict}_${position}_${gender}_${pageSize}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setCurrentPage(1);
-  }, [search, province, city, district, subdistrict, position, gender, pageSize]);
+  }
 
   // Derived pagination calculations
   const totalPages = Math.max(1, Math.ceil(members.length / pageSize));

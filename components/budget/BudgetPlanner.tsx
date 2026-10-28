@@ -15,12 +15,16 @@ import {
   History,
   Search,
   FileText,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
+import { PrintReportModal } from "@/components/reports/PrintReportModal";
+import { exportBudgetToExcel, exportAllBudgetsRecapToExcel } from "@/lib/reports/report-exporter";
 
 export interface BudgetItemData {
   id: number;
@@ -40,6 +44,18 @@ interface BudgetSummary {
   totalActual: number;
   variance: number;
   isDeficit: boolean;
+}
+
+const BUDGET_ITEM_DRAFT_KEY = "crm_budget_item_draft";
+
+interface BudgetItemDraft {
+  category: string;
+  itemName: string;
+  qty: string;
+  unit: string;
+  unitPrice: string;
+  actualSubtotal: string;
+  savedAt: string;
 }
 
 interface AutofillSuggestion {
@@ -86,6 +102,9 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItemData | null>(null);
 
+  // Print & PDF Report Modal State
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+
   // Form Fields
   const [formCategory, setFormCategory] = useState("Konsumsi");
   const [formItemName, setFormItemName] = useState("");
@@ -98,6 +117,53 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
   const [suggestions, setSuggestions] = useState<AutofillSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Item Form Local Draft State
+  const [itemDraft, setItemDraft] = useState<BudgetItemDraft | null>(null);
+
+  // Check draft on mount (deferred to avoid synchronous setState in effect)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(BUDGET_ITEM_DRAFT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as BudgetItemDraft;
+          if (parsed && (parsed.itemName || parsed.unitPrice)) {
+            setItemDraft(parsed);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Debounced auto-save item draft when modal is open and user is adding a new item
+  useEffect(() => {
+    if (!modalOpen || editingItem) return;
+    if (!formItemName.trim() && !formUnitPrice.trim()) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const draft: BudgetItemDraft = {
+          category: formCategory,
+          itemName: formItemName,
+          qty: formQty,
+          unit: formUnit,
+          unitPrice: formUnitPrice,
+          actualSubtotal: formActualSubtotal,
+          savedAt: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+        };
+        localStorage.setItem(BUDGET_ITEM_DRAFT_KEY, JSON.stringify(draft));
+        setItemDraft(draft);
+      } catch {
+        // ignore
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [modalOpen, editingItem, formCategory, formItemName, formQty, formUnit, formUnitPrice, formActualSubtotal]);
 
   const { showToast, showDeleteToast } = useToast();
 
@@ -266,6 +332,13 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
         return;
       }
 
+      try {
+        localStorage.removeItem(BUDGET_ITEM_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+      setItemDraft(null);
+
       showToast("Berhasil", editingItem ? "Item diperbarui" : "Item berhasil ditambahkan", "success");
       setModalOpen(false);
       fetchBudget(selectedActivityId);
@@ -368,9 +441,21 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
                 Lacak seluruh alokasi anggaran, total estimasi vs realisasi, dan serapan dana per agenda.
               </p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 shrink-0 self-start sm:self-auto">
-              {activities.length} Kegiatan Tercatat
-            </span>
+            <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => exportAllBudgetsRecapToExcel(activities)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+                title="Unduh seluruh rekapitulasi anggaran ke Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Unduh Rekap Excel</span>
+              </button>
+
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                {activities.length} Kegiatan Tercatat
+              </span>
+            </div>
           </div>
 
           {/* Cumulative Grand Total Cards */}
@@ -553,13 +638,51 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
                 </select>
               </div>
 
-              <button
-                onClick={handleOpenAddModal}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 mt-auto rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition shadow-xs shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Item RAB</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedActivity) {
+                      exportBudgetToExcel(selectedActivity.title, budgetItems, summary);
+                    }
+                  }}
+                  disabled={budgetItems.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition shadow-xs disabled:opacity-40 cursor-pointer"
+                  title="Unduh rincian RAB ke file Excel (.xlsx)"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span className="hidden sm:inline">Excel RAB</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPrintModalOpen(true)}
+                  disabled={budgetItems.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition shadow-xs disabled:opacity-40 cursor-pointer"
+                  title="Cetak format resmi atau simpan ke PDF"
+                >
+                  <Printer className="w-4 h-4 text-blue-600" />
+                  <span className="hidden sm:inline">Cetak / PDF</span>
+                </button>
+
+                {itemDraft && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold self-center"
+                    title={`Ada draf item "${itemDraft.itemName || 'RAB'}" tersimpan lokal (${itemDraft.savedAt})`}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Draf item tersedia</span>
+                  </span>
+                )}
+
+                <button
+                  onClick={handleOpenAddModal}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition shadow-xs shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Item RAB</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -821,6 +944,49 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSaveItem} className="space-y-3 sm:space-y-4">
+          {/* Draft Item Recovery Banner */}
+          {itemDraft && !editingItem && (formItemName !== itemDraft.itemName || formUnitPrice !== itemDraft.unitPrice) && (
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-2 text-xs text-amber-900 animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 truncate">
+                <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="truncate">
+                  Draf item tersimpan: <strong>{itemDraft.itemName || "Tanpa Nama"}</strong> ({formatCurrency(itemDraft.unitPrice || 0)})
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormCategory(itemDraft.category);
+                    setFormItemName(itemDraft.itemName);
+                    setFormQty(itemDraft.qty);
+                    setFormUnit(itemDraft.unit);
+                    setFormUnitPrice(itemDraft.unitPrice);
+                    setFormActualSubtotal(itemDraft.actualSubtotal);
+                    showToast("Draf Dipulihkan", `Draf item "${itemDraft.itemName}" berhasil diisikan ke formulir.`, "info");
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 text-white rounded-md font-semibold text-[11px] hover:bg-amber-700 transition cursor-pointer"
+                >
+                  Pakai
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      localStorage.removeItem(BUDGET_ITEM_DRAFT_KEY);
+                    } catch {
+                      // ignore
+                    }
+                    setItemDraft(null);
+                  }}
+                  className="px-1.5 py-1 text-amber-700 hover:text-amber-900 text-[11px] font-medium hover:underline cursor-pointer"
+                >
+                  Abaikan
+                </button>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
               Kategori Pengeluaran
@@ -999,6 +1165,16 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
         cancelLabel="Batal"
         variant="danger"
         isLoading={isDeleting}
+      />
+
+      {/* Print & PDF Report Modal */}
+      <PrintReportModal
+        isOpen={printModalOpen}
+        onClose={() => setPrintModalOpen(false)}
+        reportType="budget"
+        selectedActivity={selectedActivity}
+        budgetItems={budgetItems}
+        budgetSummary={summary}
       />
     </div>
   );

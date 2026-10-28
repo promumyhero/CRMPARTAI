@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Download,
   Eye,
@@ -10,6 +10,7 @@ import {
   History,
   Save,
   FileText,
+  CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
@@ -19,6 +20,38 @@ import { DocumentHistory, type SavedDocument } from "./DocumentHistory";
 
 interface DocumentGeneratorProps {
   initialActivityId?: number | null;
+}
+
+const DRAFT_STORAGE_KEY = "crm_doc_letter_draft";
+
+interface DocumentDraft {
+  savedAt: string;
+  selectedActivityId: number | null;
+  paperSize: "A4" | "F4";
+  docType: number;
+  showKop: boolean;
+  kopOrgName: string;
+  kopOrgSub: string;
+  kopAddress: string;
+  kopContact: string;
+  docNumber: string;
+  attachment: string;
+  subject: string;
+  dateStr: string;
+  city: string;
+  recipientName: string;
+  recipientLocation: string;
+  openingText: string;
+  bodyText: string;
+  closingText: string;
+  activityTitle: string;
+  activityDate: string;
+  activityTime: string;
+  activityLocation: string;
+  includeBudgetTable: boolean;
+  signerTitle: string;
+  signerName: string;
+  signerNip: string;
 }
 
 export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps) {
@@ -87,6 +120,149 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
 
   const [exporting, setExporting] = useState<boolean>(false);
   const { showToast } = useToast();
+
+  // Local Draft Storage State
+  const [draftInfo, setDraftInfo] = useState<{ savedAt: string; data: DocumentDraft } | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const isInitialMount = useRef(true);
+
+  // Check existing draft on initial mount (deferred to avoid synchronous setState in effect)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as DocumentDraft;
+          if (parsed && parsed.savedAt) {
+            setDraftInfo({ savedAt: parsed.savedAt, data: parsed });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Debounced auto-save to localStorage on field edits
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      try {
+        const draft: DocumentDraft = {
+          savedAt: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+          selectedActivityId,
+          paperSize,
+          docType,
+          showKop,
+          kopOrgName,
+          kopOrgSub,
+          kopAddress,
+          kopContact,
+          docNumber,
+          attachment,
+          subject,
+          dateStr,
+          city,
+          recipientName,
+          recipientLocation,
+          openingText,
+          bodyText,
+          closingText,
+          activityTitle,
+          activityDate,
+          activityTime,
+          activityLocation,
+          includeBudgetTable,
+          signerTitle,
+          signerName,
+          signerNip,
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        setDraftSavedAt(draft.savedAt);
+      } catch {
+        // ignore quota errors
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [
+    selectedActivityId,
+    paperSize,
+    docType,
+    showKop,
+    kopOrgName,
+    kopOrgSub,
+    kopAddress,
+    kopContact,
+    docNumber,
+    attachment,
+    subject,
+    dateStr,
+    city,
+    recipientName,
+    recipientLocation,
+    openingText,
+    bodyText,
+    closingText,
+    activityTitle,
+    activityDate,
+    activityTime,
+    activityLocation,
+    includeBudgetTable,
+    signerTitle,
+    signerName,
+    signerNip,
+  ]);
+
+  const handleRestoreDraft = () => {
+    if (!draftInfo) return;
+    const d = draftInfo.data;
+    if (d.selectedActivityId !== undefined) setSelectedActivityId(d.selectedActivityId);
+    if (d.paperSize) setPaperSize(d.paperSize);
+    if (d.docType) setDocType(d.docType);
+    if (d.showKop !== undefined) setShowKop(d.showKop);
+    if (d.kopOrgName) setKopOrgName(d.kopOrgName);
+    if (d.kopOrgSub) setKopOrgSub(d.kopOrgSub);
+    if (d.kopAddress) setKopAddress(d.kopAddress);
+    if (d.kopContact) setKopContact(d.kopContact);
+    if (d.docNumber) setDocNumber(d.docNumber);
+    if (d.attachment) setAttachment(d.attachment);
+    if (d.subject) setSubject(d.subject);
+    if (d.dateStr) setDateStr(d.dateStr);
+    if (d.city) setCity(d.city);
+    if (d.recipientName) setRecipientName(d.recipientName);
+    if (d.recipientLocation) setRecipientLocation(d.recipientLocation);
+    if (d.openingText) setOpeningText(d.openingText);
+    if (d.bodyText) setBodyText(d.bodyText);
+    if (d.closingText) setClosingText(d.closingText);
+    if (d.activityTitle) setActivityTitle(d.activityTitle);
+    if (d.activityDate) setActivityDate(d.activityDate);
+    if (d.activityTime) setActivityTime(d.activityTime);
+    if (d.activityLocation) setActivityLocation(d.activityLocation);
+    if (d.includeBudgetTable !== undefined) setIncludeBudgetTable(d.includeBudgetTable);
+    if (d.signerTitle) setSignerTitle(d.signerTitle);
+    if (d.signerName) setSignerName(d.signerName);
+    if (d.signerNip) setSignerNip(d.signerNip);
+
+    setDraftInfo(null);
+    showToast("Draf Dipulihkan", `Draf surat (tersimpan pukul ${d.savedAt}) berhasil dipulihkan ke editor.`, "success");
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setDraftInfo(null);
+    setDraftSavedAt(null);
+    showToast("Draf Dihapus", "Draf lokal telah dibersihkan.", "info");
+  };
 
   const applyActivityAutofill = useCallback(async (act: ActivityItem, currentDocType = docType) => {
     setSelectedActivityId(act.id);
@@ -269,6 +445,14 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
         }),
       });
 
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      setDraftInfo(null);
+      setDraftSavedAt(null);
+
       showToast(
         "Dokumen Siap!",
         "File Microsoft Word (.docx) berhasil diunduh.",
@@ -333,6 +517,14 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
         const data = await res.json();
         throw new Error(data.error || "Gagal menyimpan dokumen");
       }
+
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+      setDraftInfo(null);
+      setDraftSavedAt(null);
 
       showToast("Dokumen Tersimpan!", `Surat ${docNumber} berhasil disimpan ke riwayat cloud.`, "success");
     } catch (err: unknown) {
@@ -435,6 +627,16 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {draftSavedAt && (
+                <div
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium"
+                  title={`Draf tersimpan di browser pada ${draftSavedAt}`}
+                >
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Draf Tersimpan ({draftSavedAt})</span>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleSaveDocumentOnly}
@@ -456,6 +658,34 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
               </button>
             </div>
           </div>
+
+          {/* Draft Recovery Banner */}
+          {draftInfo && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-900 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Draf Tersimpan:</strong> Ditemukan draf surat yang belum tersimpan dari sesi sebelumnya ({draftInfo.savedAt}).
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={handleRestoreDraft}
+                  className="px-2.5 py-1 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition cursor-pointer"
+                >
+                  Pulihkan Draf
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  className="px-2 py-1 text-amber-700 hover:text-amber-900 font-medium hover:underline cursor-pointer"
+                >
+                  Abaikan
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Mobile / Tablet View Switcher Toggle (Hidden on large desktop screens) */}
           <div className="flex lg:hidden bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold">

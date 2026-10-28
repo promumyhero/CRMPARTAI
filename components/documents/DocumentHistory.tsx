@@ -160,10 +160,13 @@ export function DocumentHistory({
     });
   }, [documents, search, filterType, activityMap]);
 
-  // Reset pagination on filter or search changes
-  useEffect(() => {
+  // Reset pagination on filter or search changes without effect cascade
+  const filterKey = `${search}_${filterType}_${pageSize}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setCurrentPage(1);
-  }, [search, filterType, pageSize]);
+  }
 
   // Derived pagination calculations
   const totalPages = Math.max(1, Math.ceil(filteredDocs.length / pageSize));

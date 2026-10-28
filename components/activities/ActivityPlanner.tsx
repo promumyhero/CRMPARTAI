@@ -20,10 +20,14 @@ import {
   List,
   Sparkles,
   Calendar as CalendarIcon,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PrintReportModal } from "@/components/reports/PrintReportModal";
+import { exportActivitiesToExcel } from "@/lib/reports/report-exporter";
 import {
   SkeletonCard,
   SkeletonActivityCard,
@@ -160,6 +164,9 @@ export function ActivityPlanner({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState<ActivityItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Print & Export Report Modal State
+  const [printModalOpen, setPrintModalOpen] = useState(false);
 
   // Form State
   const [formTitle, setFormTitle] = useState("");
@@ -549,14 +556,34 @@ export function ActivityPlanner({
             </button>
           </div>
 
-          <button
-            onClick={() => handleOpenCreateModal(selectedDateStr)}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition shadow-xs shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Tambah Kegiatan</span>
-            <span className="sm:hidden">Tambah</span>
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => exportActivitiesToExcel(activities)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+              title="Unduh rekapitulasi kegiatan ke file Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">Excel</span>
+            </button>
+
+            <button
+              onClick={() => setPrintModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold text-xs hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+              title="Cetak atau simpan laporan ke PDF"
+            >
+              <Printer className="w-4 h-4 text-blue-600" />
+              <span className="hidden sm:inline">Cetak / PDF</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenCreateModal(selectedDateStr)}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition shadow-xs shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Tambah Kegiatan</span>
+              <span className="sm:hidden">Tambah</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1318,6 +1345,14 @@ export function ActivityPlanner({
         cancelLabel="Batal"
         variant="danger"
         isLoading={isDeleting}
+      />
+
+      {/* Print & PDF Report Modal */}
+      <PrintReportModal
+        isOpen={printModalOpen}
+        onClose={() => setPrintModalOpen(false)}
+        reportType="activities"
+        activities={activities}
       />
     </div>
   );
