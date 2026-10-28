@@ -199,7 +199,7 @@ export function DocumentGeneratorSkeleton() {
 
         {/* Right Preview Sheet (7 cols) */}
         <div className="lg:col-span-7 bg-slate-200/70 p-3 sm:p-6 rounded-xl border border-slate-200 flex justify-center">
-          <div className="w-full max-w-[794px] min-h-[480px] bg-white rounded-lg shadow-sm p-6 sm:p-10 space-y-6 animate-pulse">
+          <div className="w-full max-w-198.5 min-h-120 bg-white rounded-lg shadow-sm p-6 sm:p-10 space-y-6 animate-pulse">
             <div className="border-b-2 border-slate-800 pb-4 flex items-center justify-between gap-4">
               <Skeleton className="w-12 h-12 rounded-full shrink-0" />
               <div className="space-y-2 flex-1">
