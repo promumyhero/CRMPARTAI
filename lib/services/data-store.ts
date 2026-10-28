@@ -642,10 +642,13 @@ async function checkPg(): Promise<boolean> {
 // ==========================================
 
 export const DataService = {
-  async getDbStatus(): Promise<{ type: "postgres" | "local"; healthy: boolean }> {
+  async getDbStatus(): Promise<{ type: "postgres" | "supabase" | "local"; healthy: boolean }> {
     const ok = await checkPg();
+    if (ok) return { type: "postgres", healthy: true };
+    const sb = getSupabaseAdmin();
+    if (sb) return { type: "supabase", healthy: true };
     return {
-      type: ok ? "postgres" : "local",
+      type: "local",
       healthy: true,
     };
   },
