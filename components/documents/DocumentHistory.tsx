@@ -13,6 +13,8 @@ import {
   Building,
   User,
   FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -80,6 +82,10 @@ export function DocumentHistory({
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<number | "all">("all");
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
 
   // Delete state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -153,6 +159,20 @@ export function DocumentHistory({
       return matchesSearch && matchesType;
     });
   }, [documents, search, filterType, activityMap]);
+
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterType, pageSize]);
+
+  // Derived pagination calculations
+  const totalPages = Math.max(1, Math.ceil(filteredDocs.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedDocs = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredDocs.slice(start, start + pageSize);
+  }, [filteredDocs, safePage, pageSize]);
 
   const handleDownloadDocx = async (doc: SavedDocument) => {
     try {
@@ -398,8 +418,9 @@ export function DocumentHistory({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
-          {filteredDocs.map((doc) => {
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+            {paginatedDocs.map((doc) => {
             const actTitle = doc.activityId ? activityMap.get(doc.activityId) : null;
             const hasRab = Boolean(doc.contentPayload?.includeBudgetTable && (doc.contentPayload?.budgetItems?.length ?? 0) > 0);
             const totalRAB = doc.contentPayload?.totalEstimatedBudget || 0;
@@ -489,6 +510,71 @@ export function DocumentHistory({
             );
           })}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-3">
+              <span className="tabular-nums">
+                Menampilkan{" "}
+                <strong className="text-slate-800">
+                  {(safePage - 1) * pageSize + 1} -{" "}
+                  {Math.min(safePage * pageSize, filteredDocs.length)}
+                </strong>{" "}
+                dari <strong className="text-slate-800">{filteredDocs.length}</strong> dokumen
+              </span>
+
+              {filteredDocs.length > 9 && (
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span>Tampilkan:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={6}>6</option>
+                    <option value={9}>9</option>
+                    <option value={15}>15</option>
+                    <option value={30}>30</option>
+                  </select>
+                  <span>/ hal</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition flex items-center gap-1 font-medium text-xs cursor-pointer shadow-2xs"
+                title="Halaman Sebelumnya"
+                aria-label="Halaman Sebelumnya"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sebelumnya</span>
+              </button>
+
+              <span className="text-xs font-semibold text-slate-700 tabular-nums px-1.5">
+                Hal {safePage} dari {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition flex items-center gap-1 font-medium text-xs cursor-pointer shadow-2xs"
+                title="Halaman Selanjutnya"
+                aria-label="Halaman Selanjutnya"
+              >
+                <span className="hidden sm:inline">Berikutnya</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </>
       )}
 
       {/* Delete Confirmation Modal */}

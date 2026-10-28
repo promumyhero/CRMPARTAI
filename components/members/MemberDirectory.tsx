@@ -16,6 +16,7 @@ import {
   Award,
   Filter,
   RotateCcw,
+  ChevronLeft,
   ChevronRight,
   Building2,
 } from "lucide-react";
@@ -68,6 +69,10 @@ export function MemberDirectory() {
   const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [userProfile, setUserProfile] = useState<{ role: string; district?: string | null } | null>(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   const { showDeleteToast, showToast } = useToast();
 
@@ -155,7 +160,7 @@ export function MemberDirectory() {
       if (subdistrict) params.set("subdistrict", subdistrict);
       if (position) params.set("position", position);
       if (gender) params.set("gender", gender);
-      params.set("limit", "150");
+      params.set("limit", "500");
 
       const res = await fetch(`/api/members?${params.toString()}`);
       if (res.ok) {
@@ -169,6 +174,20 @@ export function MemberDirectory() {
       setLoading(false);
     }
   }, [search, province, city, district, subdistrict, position, gender]);
+
+  // Reset pagination to page 1 on filter or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, province, city, district, subdistrict, position, gender, pageSize]);
+
+  // Derived pagination calculations
+  const totalPages = Math.max(1, Math.ceil(members.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedMembers = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return members.slice(start, start + pageSize);
+  }, [members, safePage, pageSize]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -623,7 +642,7 @@ export function MemberDirectory() {
                   </td>
                 </tr>
               ) : (
-                members.map((m) => (
+                paginatedMembers.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
                     {/* KTA & Nama */}
                     <td className="py-3 px-4">
@@ -717,12 +736,69 @@ export function MemberDirectory() {
           </table>
         </div>
 
-        {/* Footer info */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
-          <span>Menampilkan {members.length} anggota kader</span>
-          <span className="text-[11px] text-slate-400 italic">
-            Hierarki Wilayah &bull; DPD &bull; DPC &bull; PAC &bull; Ranting
-          </span>
+        {/* Footer info & Pagination Controls */}
+        <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="tabular-nums">
+              Menampilkan{" "}
+              <strong className="text-slate-800">
+                {members.length === 0 ? 0 : (safePage - 1) * pageSize + 1} -{" "}
+                {Math.min(safePage * pageSize, members.length)}
+              </strong>{" "}
+              dari <strong className="text-slate-800">{members.length}</strong> kader
+            </span>
+
+            {members.length > 10 && (
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                <span>Tampilkan:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span>/ hal</span>
+              </div>
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5 self-center sm:self-auto">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition flex items-center gap-1 font-medium text-xs cursor-pointer shadow-2xs"
+                title="Halaman Sebelumnya"
+                aria-label="Halaman Sebelumnya"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sebelumnya</span>
+              </button>
+
+              <span className="text-xs font-semibold text-slate-700 tabular-nums px-1.5">
+                Hal {safePage} dari {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white disabled:cursor-not-allowed transition flex items-center gap-1 font-medium text-xs cursor-pointer shadow-2xs"
+                title="Halaman Selanjutnya"
+                aria-label="Halaman Selanjutnya"
+              >
+                <span className="hidden sm:inline">Berikutnya</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
