@@ -983,6 +983,12 @@ export const DataService = {
     const sb = getSupabaseAdmin();
     if (sb) {
       try {
+        // Bersihkan data relasi milik user agar tidak memicu foreign key violation
+        await sb.from("autofill_dictionary").delete().eq("user_id", id);
+        await sb.from("document_templates").delete().eq("user_id", id);
+        await sb.from("documents").delete().eq("user_id", id);
+        await sb.from("activities").delete().eq("user_id", id);
+
         const { data: deleted, error } = await sb.from("users").delete().eq("id", id).select();
         if (!error) {
           if (deleted && deleted.length > 0) {
@@ -1359,35 +1365,44 @@ export const DataService = {
     const isPg = await checkPg();
     if (isPg) {
       try {
-        await db.update(activities).set({ deletedAt: new Date() }).where(eq(activities.id, id));
+        await db.delete(budgetItems).where(eq(budgetItems.activityId, id));
+        await db.delete(activities).where(eq(activities.id, id));
         return true;
       } catch (e) {
-        console.warn("Postgres soft delete activity failed", e);
+        console.warn("Postgres delete activity failed", e);
       }
     }
 
     const sb = getSupabaseAdmin();
     if (sb) {
       try {
-        const { error } = await sb.from("activities").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-        if (!error) {
+        // Hapus anggaran dan referensi dokumen terkait terlebih dahulu
+        await sb.from("budget_items").delete().eq("activity_id", id);
+        await sb.from("documents").update({ activity_id: null }).eq("activity_id", id);
+
+        // Hapus kegiatan secara permanen dari Supabase (Hard Delete)
+        const { data: deleted, error } = await sb.from("activities").delete().eq("id", id).select();
+        if (!error && deleted && deleted.length > 0) {
           const local = loadLocalStore();
-          const act = local.activities.find((a) => a.id === id);
-          if (act) act.deletedAt = new Date();
+          local.activities = local.activities.filter((a) => a.id !== id);
+          local.budgetItems = local.budgetItems.filter((b) => b.activityId !== id);
           saveLocalStore(local);
           return true;
         }
       } catch (e) {
-        console.warn("Supabase soft delete activity failed", e);
+        console.warn("Supabase hard delete activity failed", e);
       }
     }
 
     const local = loadLocalStore();
-    const act = local.activities.find((a) => a.id === id);
-    if (!act) return false;
-    act.deletedAt = new Date();
-    saveLocalStore(local);
-    return true;
+    const initialLen = local.activities.length;
+    local.activities = local.activities.filter((a) => a.id !== id);
+    local.budgetItems = local.budgetItems.filter((b) => b.activityId !== id);
+    if (local.activities.length !== initialLen) {
+      saveLocalStore(local);
+      return true;
+    }
+    return false;
   },
 
   // BUDGET ITEMS (Precision Qty x UnitPrice, Summary Aggregates)
@@ -1974,11 +1989,11 @@ export const DataService = {
   },
 
   async deleteDocument(id: number): Promise<boolean> {
-    const now = new Date();
     const isPg = await checkPg();
     if (isPg && db) {
       try {
-        await db.update(documents).set({ deletedAt: now }).where(eq(documents.id, id));
+        await db.delete(documents).where(eq(documents.id, id));
+        return true;
       } catch (e) {
         console.warn("Postgres delete document failed:", e);
       }
@@ -1987,7 +2002,15 @@ export const DataService = {
     const sb = getSupabaseAdmin();
     if (sb) {
       try {
-        await sb.from("documents").update({ deleted_at: now.toISOString() }).eq("id", id);
+        const { data: deleted, error } = await sb.from("documents").delete().eq("id", id).select();
+        if (!error && deleted && deleted.length > 0) {
+          const local = loadLocalStore();
+          if (local.documents) {
+            local.documents = local.documents.filter((d) => d.id !== id);
+            saveLocalStore(local);
+          }
+          return true;
+        }
       } catch (e) {
         console.warn("Supabase delete document failed:", e);
       }
@@ -1995,13 +2018,14 @@ export const DataService = {
 
     const local = loadLocalStore();
     if (local.documents) {
-      const doc = local.documents.find((d) => d.id === id);
-      if (doc) {
-        doc.deletedAt = now;
+      const initialLen = local.documents.length;
+      local.documents = local.documents.filter((d) => d.id !== id);
+      if (local.documents.length !== initialLen) {
         saveLocalStore(local);
+        return true;
       }
     }
-    return true;
+    return false;
   },
 
   // TEMPLATES
