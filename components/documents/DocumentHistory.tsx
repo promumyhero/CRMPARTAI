@@ -12,13 +12,44 @@ import {
   Calendar,
   Building,
   User,
-  CheckCircle2,
-  AlertCircle,
   FileSpreadsheet,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
+import type { BudgetItemData } from "@/components/budget/BudgetPlanner";
+
+export interface DocumentContentPayload {
+  activityId?: number | null;
+  paperSize?: "A4" | "F4";
+  showKop?: boolean;
+  kopOrgName?: string;
+  kopOrgSub?: string;
+  kopAddress?: string;
+  kopContact?: string;
+  docNumber?: string;
+  attachment?: string;
+  subject?: string;
+  dateStr?: string;
+  city?: string;
+  recipientName?: string;
+  recipientLocation?: string;
+  openingText?: string;
+  opening?: string;
+  bodyText?: string;
+  closingText?: string;
+  closing?: string;
+  activityTitle?: string;
+  activityDate?: string;
+  activityTime?: string;
+  activityLocation?: string;
+  includeBudgetTable?: boolean;
+  budgetItems?: BudgetItemData[];
+  totalEstimatedBudget?: number;
+  signerTitle?: string;
+  signerName?: string;
+  signerNip?: string;
+}
 
 export interface SavedDocument {
   id: number;
@@ -28,7 +59,7 @@ export interface SavedDocument {
   docType: number;
   subject: string;
   recipientName: string;
-  contentPayload: Record<string, any>;
+  contentPayload: DocumentContentPayload;
   issuedDate: string;
   createdAt: string;
 }
@@ -55,26 +86,53 @@ export function DocumentHistory({
   const [selectedDocToDelete, setSelectedDocToDelete] = useState<SavedDocument | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const { showToast, showDeleteToast } = useToast();
+  const { showToast } = useToast();
 
-  const fetchDocuments = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch("/api/documents");
-      if (!res.ok) throw new Error("Gagal mengambil data dokumen");
-      const data = await res.json();
-      setDocuments(data.documents || []);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
-      showToast("Gagal Memuat Dokumen", msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  const fetchDocuments = useCallback(
+    async (isManualRefresh = false) => {
+      try {
+        if (isManualRefresh) {
+          setLoading(true);
+        }
+        const res = await fetch("/api/documents");
+        if (!res.ok) throw new Error("Gagal mengambil data dokumen");
+        const data = await res.json();
+        setDocuments(data.documents || []);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
+        showToast("Gagal Memuat Dokumen", msg, "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showToast]
+  );
 
   useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
+    let ignore = false;
+    fetch("/api/documents")
+      .then((res) => {
+        if (!res.ok) throw new Error("Gagal mengambil data dokumen");
+        return res.json();
+      })
+      .then((data) => {
+        if (!ignore) {
+          setDocuments(data.documents || []);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
+          showToast("Gagal Memuat Dokumen", msg, "error");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [showToast]);
 
   const activityMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -228,7 +286,7 @@ export function DocumentHistory({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchDocuments}
+            onClick={() => fetchDocuments(true)}
             disabled={loading}
             className="p-2 sm:px-3 sm:py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 transition disabled:opacity-50"
             title="Muat ulang data"
@@ -343,7 +401,7 @@ export function DocumentHistory({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           {filteredDocs.map((doc) => {
             const actTitle = doc.activityId ? activityMap.get(doc.activityId) : null;
-            const hasRab = doc.contentPayload?.includeBudgetTable && doc.contentPayload?.budgetItems?.length > 0;
+            const hasRab = Boolean(doc.contentPayload?.includeBudgetTable && (doc.contentPayload?.budgetItems?.length ?? 0) > 0);
             const totalRAB = doc.contentPayload?.totalEstimatedBudget || 0;
 
             return (

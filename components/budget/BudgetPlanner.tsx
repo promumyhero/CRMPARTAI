@@ -15,8 +15,6 @@ import {
   History,
   Search,
   FileText,
-  Calendar,
-  Building,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -475,6 +473,24 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
                         <span className={`font-bold ${isOver ? "text-rose-600" : "text-emerald-700"}`}>
                           {formatCurrency(diff)}
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Serapan */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                        <span>Serapan Anggaran</span>
+                        <span className={isOver ? "text-rose-600 font-bold" : "text-blue-600 font-semibold"}>
+                          {percent}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            isOver ? "bg-rose-500" : "bg-blue-600"
+                          }`}
+                          style={{ width: `${percent}%` }}
+                        />
                       </div>
                     </div>
                   </div>

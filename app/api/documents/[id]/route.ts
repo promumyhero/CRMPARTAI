@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
-import { getCurrentUserOrDefault } from "@/lib/auth/session";
 
 interface RouteParams {
   params: Promise<{ id: string }>;

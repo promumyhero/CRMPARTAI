@@ -10,7 +10,6 @@ import {
   History,
   Save,
   FileText,
-  Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
@@ -360,10 +359,11 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
     if (p.attachment) setAttachment(p.attachment);
     if (p.dateStr) setDateStr(p.dateStr);
     if (p.city) setCity(p.city);
-    if (p.recipientLocation) setRecipientLocation(p.recipientLocation);
-    if (p.openingText || p.opening) setOpeningText(p.openingText || p.opening);
+    const opening = p.openingText || p.opening;
+    if (opening) setOpeningText(opening);
     if (p.bodyText) setBodyText(p.bodyText);
-    if (p.closingText || p.closing) setClosingText(p.closingText || p.closing);
+    const closing = p.closingText || p.closing;
+    if (closing) setClosingText(closing);
     if (p.activityTitle) setActivityTitle(p.activityTitle);
     if (p.activityDate) setActivityDate(p.activityDate);
     if (p.activityTime) setActivityTime(p.activityTime);
