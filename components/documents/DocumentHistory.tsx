@@ -398,7 +398,7 @@ export function DocumentHistory({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           {filteredDocs.map((doc) => {
             const actTitle = doc.activityId ? activityMap.get(doc.activityId) : null;
             const hasRab = Boolean(doc.contentPayload?.includeBudgetTable && (doc.contentPayload?.budgetItems?.length ?? 0) > 0);
@@ -407,7 +407,7 @@ export function DocumentHistory({
             return (
               <div
                 key={doc.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 interactive-card flex flex-col justify-between group relative"
+                className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition flex flex-col justify-between group relative"
               >
                 <div className="space-y-2.5">
                   {/* Top Badge & Date */}

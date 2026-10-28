@@ -356,7 +356,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
       </div>
 
       {budgetViewMode === "history" ? (
-        <div key="budget-history" className="space-y-4 sm:space-y-6 animate-fade-in">
+        <div className="space-y-4 sm:space-y-6">
           {/* Header Banner */}
           <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -436,7 +436,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
               return (
                 <div
                   key={act.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 interactive-card flex flex-col justify-between"
+                  className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition flex flex-col justify-between"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
@@ -522,7 +522,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         </div>
       ) : (
-        <div key="budget-detail" className="space-y-4 sm:space-y-6 animate-fade-in">
+        <>
           {/* Top Controller: Select Activity & Action */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
             <div>
@@ -809,7 +809,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         )}
       </div>
-    </div>
+    </>
   )}
 
       {/* Modal Add / Edit Budget Item */}
