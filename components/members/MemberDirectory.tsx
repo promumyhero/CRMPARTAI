@@ -19,9 +19,14 @@ import {
   ChevronRight,
   Building2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { PartyMember } from "@/lib/db/schema";
-import { MemberImportModal } from "./MemberImportModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+
+const MemberImportModal = dynamic(
+  () => import("./MemberImportModal").then((m) => m.MemberImportModal),
+  { ssr: false }
+);
 import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { getTerritoryOptions } from "@/lib/constants/territories";

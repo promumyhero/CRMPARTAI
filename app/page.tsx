@@ -1,18 +1,79 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Navbar, type ActiveTab } from "@/components/Navbar";
-import { AuthModal } from "@/components/AuthModal";
 import { LoginPage, type AuthUserData } from "@/components/auth/LoginPage";
-import { ActivityPlanner } from "@/components/activities/ActivityPlanner";
-import { BudgetPlanner } from "@/components/budget/BudgetPlanner";
-import { DocumentGenerator } from "@/components/documents/DocumentGenerator";
-import { TemplateCustomizer } from "@/components/templates/TemplateCustomizer";
-import { MemberDirectory } from "@/components/members/MemberDirectory";
-import { UserManager } from "@/components/users/UserManager";
 import { useToast } from "@/components/ui/Toast";
 import { normalizeRole, hasPermission } from "@/lib/auth/roles";
 import { Shield, RefreshCw } from "lucide-react";
+
+// Fallback skeleton loader while lazy chunks are fetched
+function TabLoadingSkeleton({ title }: { title: string }) {
+  return (
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-pulse shadow-xs">
+        <div className="space-y-2">
+          <div className="h-6 w-48 sm:w-64 bg-slate-200 rounded-lg" />
+          <div className="h-3.5 w-60 sm:w-80 bg-slate-100 rounded-md" />
+        </div>
+        <div className="h-8 w-28 bg-slate-100 rounded-lg shrink-0 flex items-center justify-center text-[11px] font-semibold text-slate-400">
+          {title}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 animate-pulse">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="bg-white p-5 rounded-xl border border-slate-200 space-y-3 shadow-xs">
+            <div className="flex justify-between">
+              <div className="h-4 w-20 bg-slate-200 rounded" />
+              <div className="h-4 w-16 bg-slate-100 rounded" />
+            </div>
+            <div className="h-5 w-3/4 bg-slate-200 rounded" />
+            <div className="h-16 w-full bg-slate-50 rounded-lg border border-slate-100" />
+            <div className="h-8 w-full bg-slate-100 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Lazy loaded heavy modules for rapid initial page load & code splitting
+const ActivityPlanner = dynamic(
+  () => import("@/components/activities/ActivityPlanner").then((m) => m.ActivityPlanner),
+  { loading: () => <TabLoadingSkeleton title="Agenda Kegiatan" /> }
+);
+
+const BudgetPlanner = dynamic(
+  () => import("@/components/budget/BudgetPlanner").then((m) => m.BudgetPlanner),
+  { loading: () => <TabLoadingSkeleton title="Budget Planning (RAB)" /> }
+);
+
+const DocumentGenerator = dynamic(
+  () => import("@/components/documents/DocumentGenerator").then((m) => m.DocumentGenerator),
+  { loading: () => <TabLoadingSkeleton title="Format Surat & Dokumen" /> }
+);
+
+const MemberDirectory = dynamic(
+  () => import("@/components/members/MemberDirectory").then((m) => m.MemberDirectory),
+  { loading: () => <TabLoadingSkeleton title="Database & Direktori Kader" /> }
+);
+
+const TemplateCustomizer = dynamic(
+  () => import("@/components/templates/TemplateCustomizer").then((m) => m.TemplateCustomizer),
+  { loading: () => <TabLoadingSkeleton title="Format Surat Resmi" /> }
+);
+
+const UserManager = dynamic(
+  () => import("@/components/users/UserManager").then((m) => m.UserManager),
+  { loading: () => <TabLoadingSkeleton title="Manajemen Pengguna" /> }
+);
+
+const AuthModal = dynamic(
+  () => import("@/components/AuthModal").then((m) => m.AuthModal),
+  { ssr: false }
+);
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("activities");
@@ -67,14 +128,26 @@ export default function Home() {
     showToast("Berhasil Masuk", `Selamat datang, ${user.name}`, "success");
   };
 
+  const [, startTransition] = useTransition();
+
+  const handleTabChange = (tab: ActiveTab) => {
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+  };
+
   const handleNavigateToBudget = (activityId: number) => {
-    setLinkedActivityId(activityId);
-    setActiveTab("budget");
+    startTransition(() => {
+      setLinkedActivityId(activityId);
+      setActiveTab("budget");
+    });
   };
 
   const handleNavigateToLetter = (activityId: number) => {
-    setLinkedActivityId(activityId);
-    setActiveTab("documents");
+    startTransition(() => {
+      setLinkedActivityId(activityId);
+      setActiveTab("documents");
+    });
   };
 
   // Loading Screen while checking auth session cookie
@@ -107,7 +180,7 @@ export default function Home() {
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={handleTabChange}
         onOpenAuth={() => setAuthModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -115,29 +188,31 @@ export default function Home() {
 
       {/* Main Content Area (Tailored margins for mobile, tablet, and desktop) */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
-        {activeTab === "activities" && (
-          <ActivityPlanner
-            onSelectBudget={handleNavigateToBudget}
-            onSelectLetter={handleNavigateToLetter}
-          />
-        )}
+        <div key={activeTab} className="animate-fade-in">
+          {activeTab === "activities" && (
+            <ActivityPlanner
+              onSelectBudget={handleNavigateToBudget}
+              onSelectLetter={handleNavigateToLetter}
+            />
+          )}
 
-        {activeTab === "budget" && canViewBudget && (
-          <BudgetPlanner
-            initialActivityId={linkedActivityId}
-            onSelectLetter={handleNavigateToLetter}
-          />
-        )}
+          {activeTab === "budget" && canViewBudget && (
+            <BudgetPlanner
+              initialActivityId={linkedActivityId}
+              onSelectLetter={handleNavigateToLetter}
+            />
+          )}
 
-        {activeTab === "documents" && (
-          <DocumentGenerator initialActivityId={linkedActivityId} />
-        )}
+          {activeTab === "documents" && (
+            <DocumentGenerator initialActivityId={linkedActivityId} />
+          )}
 
-        {activeTab === "members" && <MemberDirectory />}
+          {activeTab === "members" && <MemberDirectory />}
 
-        {activeTab === "templates" && canManageTemplates && <TemplateCustomizer />}
+          {activeTab === "templates" && canManageTemplates && <TemplateCustomizer />}
 
-        {activeTab === "users" && canManageUsers && <UserManager />}
+          {activeTab === "users" && canManageUsers && <UserManager />}
+        </div>
       </main>
 
       {/* Footer */}

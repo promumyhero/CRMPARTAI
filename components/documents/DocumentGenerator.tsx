@@ -411,13 +411,15 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
       </div>
 
       {viewMode === "history" ? (
-        <DocumentHistory
-          onOpenDocument={handleOpenDocumentFromHistory}
-          onCreateNew={() => setViewMode("generator")}
-          activities={activities}
-        />
+        <div key="doc-history" className="animate-fade-in">
+          <DocumentHistory
+            onOpenDocument={handleOpenDocumentFromHistory}
+            onCreateNew={() => setViewMode("generator")}
+            activities={activities}
+          />
+        </div>
       ) : (
-        <>
+        <div key="doc-generator" className="space-y-4 sm:space-y-6 animate-fade-in">
           {/* Top Banner & Export Action */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
             <div>
@@ -976,7 +978,7 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
           </div>
         </div>
       </div>
-    </>
+    </div>
   )}
     </div>
   );
