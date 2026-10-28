@@ -1,18 +1,37 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Navbar, type ActiveTab } from "@/components/Navbar";
 import { AuthModal } from "@/components/AuthModal";
 import { LoginPage, type AuthUserData } from "@/components/auth/LoginPage";
 import { ActivityPlanner } from "@/components/activities/ActivityPlanner";
-import { BudgetPlanner } from "@/components/budget/BudgetPlanner";
-import { DocumentGenerator } from "@/components/documents/DocumentGenerator";
 import { TemplateCustomizer } from "@/components/templates/TemplateCustomizer";
 import { MemberDirectory } from "@/components/members/MemberDirectory";
-import { UserManager } from "@/components/users/UserManager";
 import { useToast } from "@/components/ui/Toast";
 import { normalizeRole, hasPermission } from "@/lib/auth/roles";
 import { Shield, RefreshCw } from "lucide-react";
+import {
+  BudgetPlannerSkeleton,
+  DocumentGeneratorSkeleton,
+  UserManagerSkeleton,
+} from "@/components/ui/Skeleton";
+
+// Lazy loaded heavy modules with exact layout skeletons
+const BudgetPlanner = dynamic(
+  () => import("@/components/budget/BudgetPlanner").then((m) => m.BudgetPlanner),
+  { loading: () => <BudgetPlannerSkeleton /> }
+);
+
+const DocumentGenerator = dynamic(
+  () => import("@/components/documents/DocumentGenerator").then((m) => m.DocumentGenerator),
+  { loading: () => <DocumentGeneratorSkeleton /> }
+);
+
+const UserManager = dynamic(
+  () => import("@/components/users/UserManager").then((m) => m.UserManager),
+  { loading: () => <UserManagerSkeleton /> }
+);
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("activities");
