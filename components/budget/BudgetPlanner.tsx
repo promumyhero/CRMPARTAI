@@ -12,6 +12,11 @@ import {
   ArrowRight,
   FolderOpen,
   DollarSign,
+  History,
+  Search,
+  FileText,
+  Calendar,
+  Building,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
@@ -66,6 +71,8 @@ const CATEGORIES = [
 ];
 
 export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlannerProps) {
+  const [budgetViewMode, setBudgetViewMode] = useState<"detail" | "history">("detail");
+  const [searchHistory, setSearchHistory] = useState("");
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(initialActivityId || null);
   const [budgetItems, setBudgetItems] = useState<BudgetItemData[]>([]);
@@ -309,47 +316,236 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
 
   const subtotalEstimatePreview = (parseFloat(formQty) || 0) * (parseFloat(formUnitPrice) || 0);
 
+  const grandTotalEstimated = activities.reduce((acc, a) => acc + (parseFloat(a.totalEstimatedBudget) || 0), 0);
+  const grandTotalActual = activities.reduce((acc, a) => acc + (parseFloat(a.totalActualBudget) || 0), 0);
+  const grandTotalVariance = grandTotalEstimated - grandTotalActual;
+
+  const filteredHistoryActivities = activities.filter((a) => {
+    if (!searchHistory) return true;
+    const q = searchHistory.toLowerCase();
+    return (
+      a.title.toLowerCase().includes(q) ||
+      a.category.toLowerCase().includes(q) ||
+      (a.picName && a.picName.toLowerCase().includes(q)) ||
+      (a.location && a.location.toLowerCase().includes(q))
+    );
+  });
+
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Top Controller: Select Activity & Action */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-            Budget Planning (RAB)
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5 sm:mt-1">
-            Kalkulasi anggaran presisi, perbandingan estimasi vs realisasi, dan autofill referensi cepat.
-          </p>
-        </div>
+      {/* Top View Selector Tab */}
+      <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold max-w-md">
+        <button
+          type="button"
+          onClick={() => setBudgetViewMode("detail")}
+          className={`flex-1 py-2 flex items-center justify-center gap-2 rounded-lg transition ${
+            budgetViewMode === "detail" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          <span>Rincian Item RAB</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setBudgetViewMode("history")}
+          className={`flex-1 py-2 flex items-center justify-center gap-2 rounded-lg transition ${
+            budgetViewMode === "history" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Riwayat & Rekapitulasi RAB</span>
+        </button>
+      </div>
 
-        {/* Activity Selector & Add Button */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
-          <div className="flex flex-col">
-            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Kegiatan Terpilih:
-            </label>
-            <select
-              value={selectedActivityId || ""}
-              onChange={(e) => setSelectedActivityId(Number(e.target.value))}
-              className="text-xs font-semibold rounded-lg border border-slate-300 py-2 px-3 bg-white text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 w-full sm:min-w-56"
-            >
-              {activities.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.title}
-                </option>
-              ))}
-            </select>
+      {budgetViewMode === "history" ? (
+        <div className="space-y-4 sm:space-y-6">
+          {/* Header Banner */}
+          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <History className="w-5 h-5 text-blue-600" />
+                <span>Riwayat & Rekapitulasi Anggaran Seluruh Kegiatan</span>
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Lacak seluruh alokasi anggaran, total estimasi vs realisasi, dan serapan dana per agenda.
+              </p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 shrink-0 self-start sm:self-auto">
+              {activities.length} Kegiatan Tercatat
+            </span>
           </div>
 
-          <button
-            onClick={handleOpenAddModal}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 mt-auto rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition shadow-xs shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Tambah Item RAB</span>
-          </button>
+          {/* Cumulative Grand Total Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Total Pagu Estimasi (Semua Kegiatan)
+              </span>
+              <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1">
+                {formatCurrency(grandTotalEstimated)}
+              </div>
+              <span className="text-[11px] text-blue-600 font-medium block mt-1">
+                Akumulasi seluruh anggaran diajukan
+              </span>
+            </div>
+
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Total Realisasi Pengeluaran (SPJ)
+              </span>
+              <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1">
+                {formatCurrency(grandTotalActual)}
+              </div>
+              <span className="text-[11px] text-emerald-600 font-medium block mt-1">
+                Total biaya aktual yang terpakai
+              </span>
+            </div>
+
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Sisa / Efisiensi Anggaran Total
+              </span>
+              <div className={`text-lg sm:text-xl font-bold mt-1 ${grandTotalVariance < 0 ? "text-rose-600" : "text-emerald-700"}`}>
+                {formatCurrency(grandTotalVariance)}
+              </div>
+              <span className="text-[11px] text-slate-500 font-medium block mt-1">
+                {grandTotalVariance < 0 ? "⚠️ Melebihi estimasi awal" : "✓ Surplus / penghematan dana"}
+              </span>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center gap-2">
+            <Search className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
+            <input
+              type="text"
+              value={searchHistory}
+              onChange={(e) => setSearchHistory(e.target.value)}
+              placeholder="Cari kegiatan, kategori, lokasi, atau penanggung jawab..."
+              className="w-full text-xs bg-transparent border-0 focus:outline-hidden"
+            />
+          </div>
+
+          {/* Activities Budget Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+            {filteredHistoryActivities.map((act) => {
+              const est = parseFloat(act.totalEstimatedBudget) || 0;
+              const actVal = parseFloat(act.totalActualBudget) || 0;
+              const diff = est - actVal;
+              const isOver = diff < 0;
+              const percent = est > 0 ? Math.min(100, Math.round((actVal / est) * 100)) : 0;
+
+              return (
+                <div
+                  key={act.id}
+                  className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                        {act.category}
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {new Date(act.startDate).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 line-clamp-1">{act.title}</h3>
+                      {act.picName && (
+                        <p className="text-xs text-slate-500 mt-0.5">PIC: {act.picName}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 p-2.5 bg-slate-50 rounded-lg text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 text-[11px]">Estimasi Pagu:</span>
+                        <span className="font-semibold text-slate-800">{formatCurrency(est)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 text-[11px]">Realisasi Aktual:</span>
+                        <span className="font-semibold text-slate-800">{formatCurrency(actVal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200">
+                        <span className="text-slate-500 text-[11px]">Selisih:</span>
+                        <span className={`font-bold ${isOver ? "text-rose-600" : "text-emerald-700"}`}>
+                          {formatCurrency(diff)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedActivityId(act.id);
+                        setBudgetViewMode("detail");
+                      }}
+                      className="flex-1 py-1.5 px-2.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>Rincian RAB</span>
+                    </button>
+
+                    <button
+                      onClick={() => onSelectLetter(act.id)}
+                      className="py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center justify-center gap-1.5 transition"
+                      title="Buat Surat Permohonan Anggaran untuk kegiatan ini"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Surat</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Top Controller: Select Activity & Action */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                Budget Planning (RAB)
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5 sm:mt-1">
+                Kalkulasi anggaran presisi, perbandingan estimasi vs realisasi, dan autofill referensi cepat.
+              </p>
+            </div>
+
+            {/* Activity Selector & Add Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3">
+              <div className="flex flex-col">
+                <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Kegiatan Terpilih:
+                </label>
+                <select
+                  value={selectedActivityId || ""}
+                  onChange={(e) => setSelectedActivityId(Number(e.target.value))}
+                  className="text-xs font-semibold rounded-lg border border-slate-300 py-2 px-3 bg-white text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 w-full sm:min-w-56"
+                >
+                  {activities.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={handleOpenAddModal}
+                className="flex items-center justify-center gap-1.5 px-4 py-2 mt-auto rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition shadow-xs shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Item RAB</span>
+              </button>
+            </div>
+          </div>
 
       {/* SUMMARY BAR (Real-Time Calculation without page reload) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
@@ -597,6 +793,8 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         )}
       </div>
+    </>
+  )}
 
       {/* Modal Add / Edit Budget Item */}
       <Modal

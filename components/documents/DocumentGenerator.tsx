@@ -7,17 +7,25 @@ import {
   Sparkles,
   Printer,
   Edit3,
+  History,
+  Save,
+  FileText,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
 import type { BudgetItemData } from "@/components/budget/BudgetPlanner";
 import type { TemplateData } from "@/components/templates/TemplateCustomizer";
+import { DocumentHistory, type SavedDocument } from "./DocumentHistory";
 
 interface DocumentGeneratorProps {
   initialActivityId?: number | null;
 }
 
 export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps) {
+  const [viewMode, setViewMode] = useState<"generator" | "history">("generator");
+  const [savingDoc, setSavingDoc] = useState<boolean>(false);
+
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [templates, setTemplates] = useState<TemplateData[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<number | null>(initialActivityId || null);
@@ -275,6 +283,102 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
     }
   };
 
+  const handleSaveDocumentOnly = async () => {
+    try {
+      setSavingDoc(true);
+      const payload = {
+        activityId: selectedActivityId,
+        paperSize,
+        showKop,
+        kopOrgName,
+        kopOrgSub,
+        kopAddress,
+        kopContact,
+        docNumber,
+        attachment: includeBudgetTable ? "1 (Satu) Berkas Rincian RAB" : attachment,
+        subject,
+        dateStr,
+        city,
+        recipientName,
+        recipientLocation,
+        openingText,
+        bodyText,
+        closingText,
+        activityTitle,
+        activityDate,
+        activityTime,
+        activityLocation,
+        includeBudgetTable,
+        budgetItems,
+        totalEstimatedBudget,
+        signerTitle,
+        signerName,
+        signerNip,
+      };
+
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityId: selectedActivityId,
+          docNumber,
+          docType,
+          subject,
+          recipientName,
+          contentPayload: payload,
+          issuedDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Gagal menyimpan dokumen");
+      }
+
+      showToast("Dokumen Tersimpan!", `Surat ${docNumber} berhasil disimpan ke riwayat cloud.`, "success");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal menyimpan dokumen";
+      showToast("Gagal Menyimpan", msg, "error");
+    } finally {
+      setSavingDoc(false);
+    }
+  };
+
+  const handleOpenDocumentFromHistory = (doc: SavedDocument) => {
+    const p = doc.contentPayload || {};
+    if (doc.activityId) setSelectedActivityId(doc.activityId);
+    if (doc.docNumber) setDocNumber(doc.docNumber);
+    if (doc.docType) setDocType(doc.docType);
+    if (doc.subject) setSubject(doc.subject);
+    if (doc.recipientName) setRecipientName(doc.recipientName);
+    if (p.paperSize) setPaperSize(p.paperSize);
+    if (p.showKop !== undefined) setShowKop(p.showKop);
+    if (p.kopOrgName) setKopOrgName(p.kopOrgName);
+    if (p.kopOrgSub) setKopOrgSub(p.kopOrgSub);
+    if (p.kopAddress) setKopAddress(p.kopAddress);
+    if (p.kopContact) setKopContact(p.kopContact);
+    if (p.attachment) setAttachment(p.attachment);
+    if (p.dateStr) setDateStr(p.dateStr);
+    if (p.city) setCity(p.city);
+    if (p.recipientLocation) setRecipientLocation(p.recipientLocation);
+    if (p.openingText || p.opening) setOpeningText(p.openingText || p.opening);
+    if (p.bodyText) setBodyText(p.bodyText);
+    if (p.closingText || p.closing) setClosingText(p.closingText || p.closing);
+    if (p.activityTitle) setActivityTitle(p.activityTitle);
+    if (p.activityDate) setActivityDate(p.activityDate);
+    if (p.activityTime) setActivityTime(p.activityTime);
+    if (p.activityLocation) setActivityLocation(p.activityLocation);
+    if (p.includeBudgetTable !== undefined) setIncludeBudgetTable(p.includeBudgetTable);
+    if (p.budgetItems) setBudgetItems(p.budgetItems);
+    if (p.totalEstimatedBudget) setTotalEstimatedBudget(p.totalEstimatedBudget);
+    if (p.signerTitle) setSignerTitle(p.signerTitle);
+    if (p.signerName) setSignerName(p.signerName);
+    if (p.signerNip) setSignerNip(p.signerNip);
+
+    setViewMode("generator");
+    showToast("Dokumen Dimuat", `Dokumen "${doc.docNumber}" dimuat ke lembar kerja editor.`, "info");
+  };
+
   const formatCurrency = (val: string | number) => {
     const num = typeof val === "string" ? parseFloat(val) || 0 : val;
     return "Rp " + num.toLocaleString("id-ID");
@@ -282,42 +386,87 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Top Banner & Export Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-              Format Surat & Export .docx
-            </h1>
-            <span className="text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-              OpenXML
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-0.5 sm:mt-1">
-            Autofill data kegiatan, borderless table grid untuk titik dua sejajar, dan pratinjau live A4/F4.
-          </p>
-        </div>
-
+      {/* Top Navigation Tabs: Generator Editor vs History List */}
+      <div className="flex bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold max-w-md">
         <button
-          onClick={handleExportDocx}
-          disabled={exporting}
-          className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 shrink-0 w-full sm:w-auto"
+          type="button"
+          onClick={() => setViewMode("generator")}
+          className={`flex-1 py-2 flex items-center justify-center gap-2 rounded-lg transition ${
+            viewMode === "generator" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          }`}
         >
-          <Download className="w-4 h-4" />
-          <span>{exporting ? "Menyusun Berkas..." : "Unduh Dokumen Word (.docx)"}</span>
+          <FileText className="w-4 h-4" />
+          <span>Editor & Pratinjau Surat</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("history")}
+          className={`flex-1 py-2 flex items-center justify-center gap-2 rounded-lg transition ${
+            viewMode === "history" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          <History className="w-4 h-4" />
+          <span>Riwayat Dokumen Terbit</span>
         </button>
       </div>
 
-      {/* Mobile / Tablet View Switcher Toggle (Hidden on large desktop screens) */}
-      <div className="flex lg:hidden bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold">
-        <button
-          type="button"
-          onClick={() => setMobileView("form")}
-          className={`flex-1 py-2 flex items-center justify-center gap-1.5 rounded-lg transition ${
-            mobileView === "form" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
-          }`}
-        >
-          <Edit3 className="w-4 h-4" />
+      {viewMode === "history" ? (
+        <DocumentHistory
+          onOpenDocument={handleOpenDocumentFromHistory}
+          onCreateNew={() => setViewMode("generator")}
+          activities={activities}
+        />
+      ) : (
+        <>
+          {/* Top Banner & Export Action */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                  Format Surat & Export .docx
+                </h1>
+                <span className="text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                  OpenXML
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5 sm:mt-1">
+                Autofill data kegiatan, borderless table grid untuk titik dua sejajar, dan pratinjau live A4/F4.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleSaveDocumentOnly}
+                disabled={savingDoc}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition disabled:opacity-50"
+                title="Simpan dokumen ini ke riwayat database"
+              >
+                <Save className="w-4 h-4 text-blue-600" />
+                <span>{savingDoc ? "Menyimpan..." : "Simpan ke Riwayat"}</span>
+              </button>
+
+              <button
+                onClick={handleExportDocx}
+                disabled={exporting}
+                className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 shrink-0"
+              >
+                <Download className="w-4 h-4" />
+                <span>{exporting ? "Menyusun Berkas..." : "Unduh Dokumen Word (.docx)"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile / Tablet View Switcher Toggle (Hidden on large desktop screens) */}
+          <div className="flex lg:hidden bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setMobileView("form")}
+              className={`flex-1 py-2 flex items-center justify-center gap-1.5 rounded-lg transition ${
+                mobileView === "form" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600"
+              }`}
+            >
+              <Edit3 className="w-4 h-4" />
           <span>Pengaturan Form</span>
         </button>
         <button
@@ -827,6 +976,8 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
           </div>
         </div>
       </div>
+    </>
+  )}
     </div>
   );
 }

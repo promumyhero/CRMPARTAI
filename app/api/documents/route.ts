@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       subject: body.subject,
       recipientName: body.recipientName,
       contentPayload: body.contentPayload || {},
-      issuedDate: body.issuedDate,
+      issuedDate: body.issuedDate || new Date().toISOString().split("T")[0],
     });
 
     return NextResponse.json({ document: doc }, { status: 201 });

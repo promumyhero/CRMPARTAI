@@ -1366,6 +1366,7 @@ export const DataService = {
     if (isPg) {
       try {
         await db.delete(budgetItems).where(eq(budgetItems.activityId, id));
+        await db.delete(documents).where(eq(documents.activityId, id));
         await db.delete(activities).where(eq(activities.id, id));
         return true;
       } catch (e) {
@@ -1376,9 +1377,9 @@ export const DataService = {
     const sb = getSupabaseAdmin();
     if (sb) {
       try {
-        // Hapus anggaran dan referensi dokumen terkait terlebih dahulu
+        // Hapus anggaran dan surat/dokumen terkait secara cascade
         await sb.from("budget_items").delete().eq("activity_id", id);
-        await sb.from("documents").update({ activity_id: null }).eq("activity_id", id);
+        await sb.from("documents").delete().eq("activity_id", id);
 
         // Hapus kegiatan secara permanen dari Supabase (Hard Delete)
         const { data: deleted, error } = await sb.from("activities").delete().eq("id", id).select();
@@ -1386,6 +1387,7 @@ export const DataService = {
           const local = loadLocalStore();
           local.activities = local.activities.filter((a) => a.id !== id);
           local.budgetItems = local.budgetItems.filter((b) => b.activityId !== id);
+          local.documents = (local.documents || []).filter((d) => d.activityId !== id);
           saveLocalStore(local);
           return true;
         }
@@ -1398,6 +1400,7 @@ export const DataService = {
     const initialLen = local.activities.length;
     local.activities = local.activities.filter((a) => a.id !== id);
     local.budgetItems = local.budgetItems.filter((b) => b.activityId !== id);
+    local.documents = (local.documents || []).filter((d) => d.activityId !== id);
     if (local.activities.length !== initialLen) {
       saveLocalStore(local);
       return true;
@@ -1822,7 +1825,7 @@ export const DataService = {
         if (params?.userId) q = q.eq("user_id", params.userId);
         if (params?.activityId) q = q.eq("activity_id", params.activityId);
         const { data, error } = await q.order("created_at", { ascending: false });
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           return data.map((d) => ({
             id: d.id,
             activityId: d.activity_id,
