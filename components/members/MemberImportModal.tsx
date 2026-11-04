@@ -102,32 +102,38 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overscroll-contain">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-modal-title"
+        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
-              <FileSpreadsheet className="w-5 h-5" />
+              <FileSpreadsheet className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Import Data Anggota & Pengurus</h2>
+              <h2 id="import-modal-title" className="text-base font-bold text-slate-900">Import Data Anggota & Pengurus</h2>
               <p className="text-xs text-slate-500">Mendukung file Excel (.xlsx, .xls) dan CSV dengan pratinjau validasi aman</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50 transition-colors"
+            aria-label="Tutup modal import"
+            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-6 overflow-y-auto space-y-5 flex-1 overscroll-contain">
           {errorMsg && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" aria-hidden="true" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -135,14 +141,23 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
           {/* Upload Area */}
           {!parseResult && (
             <div
+              role="button"
+              tabIndex={0}
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50/50 hover:bg-blue-50/30 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              className="border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50/50 hover:bg-blue-50/30 rounded-2xl p-8 text-center cursor-pointer transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 flex flex-col items-center justify-center gap-3"
             >
               <input
                 ref={fileInputRef}
                 type="file"
+                aria-label="Pilih file Excel atau CSV untuk diimpor"
                 accept=".xlsx, .xls, .csv"
                 className="hidden"
                 onChange={handleFileChange}
@@ -166,8 +181,8 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
 
           {isParsing && (
             <div className="py-12 text-center text-slate-500 flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <p className="text-sm font-medium">Menganalisis lembar kerja dan memvalidasi kolom...</p>
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" aria-hidden="true" />
+              <p className="text-sm font-medium">Menganalisis lembar kerja dan memvalidasi kolom…</p>
             </div>
           )}
 
@@ -298,8 +313,8 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Menyimpan ke Supabase/Database...
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Menyimpan ke Supabase/Database…
                 </>
               ) : (
                 `Konfirmasi & Simpan (${parseResult.validCount + parseResult.warningCount} Baris)`

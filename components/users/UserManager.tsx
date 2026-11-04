@@ -588,10 +588,11 @@ export function UserManager() {
             <button
               onClick={fetchUsers}
               disabled={loading}
-              className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
               title="Refresh Data"
+              aria-label="Refresh data pengguna"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
             </button>
 
             <button
@@ -687,7 +688,7 @@ export function UserManager() {
 
                 {/* Selected Role Detailed Panel */}
                 <div
-                  className={`p-5 rounded-2xl border ${selectedRoleGuide.colorScheme.bg} ${selectedRoleGuide.colorScheme.border} shadow-xs transition-all`}
+                  className={`p-5 rounded-2xl border ${selectedRoleGuide.colorScheme.bg} ${selectedRoleGuide.colorScheme.border} shadow-xs transition-colors`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 pb-4 border-b border-slate-200/80">
                     <div className="flex items-start gap-3">
@@ -876,21 +877,23 @@ export function UserManager() {
         {/* Filters and search */}
         <div className="mt-5 grid grid-cols-1 sm:grid-cols-12 gap-3 pt-4 border-t border-slate-100">
           <div className="sm:col-span-8 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" aria-hidden="true" />
             <input
               type="text"
+              aria-label="Cari pengguna berdasarkan nama, email, atau telepon"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama pengguna, email, atau no. telepon..."
-              className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
+              placeholder="Cari nama pengguna, email, atau no. telepon…"
+              className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 bg-slate-50/50"
             />
           </div>
 
           <div className="sm:col-span-4">
             <select
               value={filterRole}
+              aria-label="Filter berdasarkan peran pengguna"
               onChange={(e) => setFilterRole(e.target.value)}
-              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 bg-white"
             >
               <option value="all">Semua Peran / Role</option>
               <option value="superadmin">Super Admin (DPD Kalbar)</option>
@@ -921,8 +924,8 @@ export function UserManager() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
-                    Memuat daftar pengguna sistem...
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" aria-hidden="true" />
+                    Memuat daftar pengguna sistem…
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
@@ -1003,17 +1006,19 @@ export function UserManager() {
                         <div className="inline-flex items-center gap-1">
                           <button
                             onClick={() => handleOpenEdit(u)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
                             title="Edit Pengguna"
+                            aria-label="Edit pengguna"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                           <button
                             onClick={() => handleOpenDelete(u)}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
                             title="Hapus Pengguna"
+                            aria-label="Hapus pengguna"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
                         </div>
                       </td>
@@ -1196,7 +1201,7 @@ export function UserManager() {
               disabled={formSubmitting}
               className="px-5 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer"
             >
-              {formSubmitting ? "Menyimpan..." : "Simpan Pengguna"}
+              {formSubmitting ? "Menyimpan…" : "Simpan Pengguna"}
             </button>
           </div>
         </form>
@@ -1359,7 +1364,7 @@ export function UserManager() {
               disabled={formSubmitting}
               className="px-5 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 cursor-pointer"
             >
-              {formSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+              {formSubmitting ? "Menyimpan…" : "Simpan Perubahan"}
             </button>
           </div>
         </form>
@@ -1395,7 +1400,7 @@ export function UserManager() {
               disabled={formSubmitting}
               className="px-4 py-2 text-xs font-semibold bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition disabled:opacity-50 cursor-pointer"
             >
-              {formSubmitting ? "Menghapus..." : "Ya, Hapus Pengguna"}
+              {formSubmitting ? "Menghapus…" : "Ya, Hapus Pengguna"}
             </button>
           </div>
         </div>

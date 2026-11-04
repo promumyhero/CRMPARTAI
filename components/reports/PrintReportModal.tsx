@@ -80,20 +80,20 @@ export function PrintReportModal({
             <button
               type="button"
               onClick={handleDownloadExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
               title="Unduh format spreadsheet .xlsx"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
               <span>Unduh Excel (.xlsx)</span>
             </button>
 
             <button
               type="button"
               onClick={handleTriggerPrint}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 cursor-pointer"
               title="Cetak atau simpan ke PDF"
             >
-              <Printer className="w-3.5 h-3.5" />
+              <Printer className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Cetak / Simpan PDF</span>
             </button>
           </div>
@@ -106,14 +106,14 @@ export function PrintReportModal({
         >
           {/* Header Kop Resmi */}
           <div className="border-b-2 border-slate-900 pb-3 text-center space-y-1">
-            <h2 className="text-base sm:text-lg font-extrabold uppercase tracking-wider text-slate-900">
+            <h1 className="text-base sm:text-lg font-extrabold uppercase tracking-wider text-slate-900">
               DEWAN PENGURUS DAERAH / PUSAT PARTAI
-            </h2>
-            <h3 className="text-xs sm:text-sm font-bold text-blue-800 uppercase tracking-wide">
+            </h1>
+            <h2 className="text-xs sm:text-sm font-bold text-blue-800 uppercase tracking-wide">
               {reportType === "activities"
                 ? "LAPORAN REKAPITULASI AGENDA OPERASIONAL & KEGIATAN"
                 : "LAPORAN PERTANGGUNGJAWABAN RENCANA ANGGARAN BIAYA (RAB)"}
-            </h3>
+            </h2>
             <p className="text-[10px] text-slate-500">
               Sistem Informasi Manajemen Kader & Tata Kelola Kepengurusan (CRM Partai)
             </p>
@@ -298,7 +298,7 @@ export function PrintReportModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg"
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
           >
             Tutup
           </button>

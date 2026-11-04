@@ -180,7 +180,7 @@ export function DocumentHistory({
   const handleDownloadDocx = async (doc: SavedDocument) => {
     try {
       setDownloadingId(doc.id);
-      showToast("Menyiapkan Berkas", `Mengunduh ${doc.docNumber}...`, "info");
+      showToast("Menyiapkan Berkas", `Mengunduh ${doc.docNumber}…`, "info");
 
       const payload = doc.contentPayload || {};
       const res = await fetch("/api/documents/export", {
@@ -332,13 +332,14 @@ export function DocumentHistory({
       <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Cari riwayat dokumen"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nomor surat, perihal, nama penerima, atau kegiatan..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+            placeholder="Cari nomor surat, perihal, nama penerima, atau kegiatan…"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
           />
         </div>
 
@@ -390,8 +391,8 @@ export function DocumentHistory({
       {/* Document List View */}
       {loading ? (
         <div className="bg-white p-12 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-slate-400 space-y-2">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-          <p className="text-xs font-medium">Memuat riwayat dokumen dari cloud database...</p>
+          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" aria-hidden="true" />
+          <p className="text-xs font-medium">Memuat riwayat dokumen dari cloud database…</p>
         </div>
       ) : filteredDocs.length === 0 ? (
         <div className="bg-white p-12 rounded-xl border border-dashed border-slate-300 text-center space-y-3">
@@ -503,10 +504,11 @@ export function DocumentHistory({
 
                   <button
                     onClick={() => handleDeleteClick(doc)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 cursor-pointer"
                     title="Hapus riwayat dokumen ini"
+                    aria-label="Hapus riwayat dokumen ini"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -532,11 +534,12 @@ export function DocumentHistory({
                   <span>Tampilkan:</span>
                   <select
                     value={pageSize}
+                    aria-label="Jumlah dokumen per halaman"
                     onChange={(e) => {
                       setPageSize(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
                   >
                     <option value={6}>6</option>
                     <option value={9}>9</option>

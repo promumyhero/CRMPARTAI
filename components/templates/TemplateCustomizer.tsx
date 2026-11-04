@@ -39,7 +39,7 @@ export function TemplateCustomizer() {
   const [headerContact, setHeaderContact] = useState("");
   const [paperSize, setPaperSize] = useState<"A4" | "F4">("A4");
   const [defaultOpening, setDefaultOpening] = useState("Dengan hormat,");
-  const [defaultClosing, setDefaultClosing] = useState("Demikian surat ini kami sampaikan...");
+  const [defaultClosing, setDefaultClosing] = useState("Demikian surat ini kami sampaikan…");
   const [signerTitle, setSignerTitle] = useState("Ketua Pelaksana,");
   const [signerName, setSignerName] = useState("");
   const [signerNip, setSignerNip] = useState("");
@@ -183,10 +183,10 @@ export function TemplateCustomizer() {
 
       {/* Templates Grid Cards (1 col mobile, 2 cols tablet/desktop) */}
       {loading ? (
-        <div className="p-12 text-center text-slate-400 text-xs">Memuat daftar template...</div>
+        <div className="p-12 text-center text-slate-400 text-xs">Memuat daftar template…</div>
       ) : templates.length === 0 ? (
         <div className="bg-white p-8 sm:p-12 text-center rounded-xl border border-slate-200">
-          <Sliders className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+          <Sliders className="w-10 h-10 text-slate-300 mx-auto mb-2" aria-hidden="true" />
           <p className="text-sm font-semibold text-slate-700">Belum ada template kustom</p>
           <p className="text-xs text-slate-400 mt-1">
             Klik tombol &quot;Buat Template Baru&quot; untuk menyimpan profil kop surat organisasi Anda.
@@ -197,7 +197,7 @@ export function TemplateCustomizer() {
           {templates.map((tmpl) => (
             <div
               key={tmpl.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-all space-y-3 sm:space-y-4"
+              className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs hover:border-slate-300 transition-[border-color,box-shadow] space-y-3 sm:space-y-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -262,7 +262,7 @@ export function TemplateCustomizer() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="cth. Template Surat Resmi Pengurus Pusat"
-              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-semibold"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 font-semibold"
             />
           </div>
 

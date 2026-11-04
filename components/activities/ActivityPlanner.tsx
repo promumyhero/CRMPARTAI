@@ -621,25 +621,27 @@ export function ActivityPlanner({
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
         <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Cari kegiatan, lokasi, atau PIC"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari kegiatan, lokasi, atau PIC..."
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            placeholder="Cari kegiatan, lokasi, atau PIC…"
+            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <Filter className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
             <span>Status:</span>
           </div>
           <select
             value={statusFilter}
+            aria-label="Filter berdasarkan status kegiatan"
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs rounded-lg border border-slate-200 py-1.5 px-3 bg-white text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none"
+            className="text-xs rounded-lg border border-slate-200 py-1.5 px-3 bg-white text-slate-700 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 flex-1 sm:flex-none"
           >
             <option value="all">Semua Status</option>
             <option value="1">Draft</option>
@@ -721,8 +723,16 @@ export function ActivityPlanner({
                   return (
                     <div
                       key={idx}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedDateStr(cell.dateStr)}
-                      className={`min-h-22.5 sm:min-h-28.75 p-1.5 sm:p-2 bg-white transition-all cursor-pointer relative group ${
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedDateStr(cell.dateStr);
+                        }
+                      }}
+                      className={`min-h-22.5 sm:min-h-28.75 p-1.5 sm:p-2 bg-white transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer relative group ${
                         !cell.isCurrentMonth ? "bg-slate-50/50 text-slate-400" : "hover:bg-blue-50/20"
                       } ${
                         isSelected
@@ -887,7 +897,7 @@ export function ActivityPlanner({
                   return (
                     <div
                       key={act.id}
-                      className="bg-slate-50/60 hover:bg-slate-50 rounded-xl border border-slate-200 p-4 transition-all"
+                      className="bg-slate-50/60 hover:bg-slate-50 rounded-xl border border-slate-200 p-4 transition-colors"
                     >
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                         <div className="space-y-1.5 flex-1">
@@ -935,7 +945,7 @@ export function ActivityPlanner({
                               </div>
                               <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full transition-all duration-300 ${
+                                  className={`h-full transition-[width] duration-300 ${
                                     checklistDone === checklistTotal ? "bg-emerald-500" : "bg-blue-500"
                                   }`}
                                   style={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
@@ -1027,7 +1037,7 @@ export function ActivityPlanner({
                 return (
                   <div
                     key={act.id}
-                    className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all p-4 sm:p-5 shadow-xs"
+                    className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-[border-color,box-shadow] p-4 sm:p-5 shadow-xs"
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                       {/* Left Column: Title & Meta */}
@@ -1077,7 +1087,7 @@ export function ActivityPlanner({
                             </div>
                             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                               <div
-                                className={`h-full transition-all duration-300 ${
+                                className={`h-full transition-[width] duration-300 ${
                                   checklistDone === checklistTotal ? "bg-emerald-500" : "bg-blue-500"
                                 }`}
                                 style={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
@@ -1170,7 +1180,7 @@ export function ActivityPlanner({
               value={formTitle}
               onChange={(e) => setFormTitle(e.target.value)}
               placeholder="cth. Workshop Pemantapan SOP Organisasi 2026"
-              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
             />
           </div>
 
@@ -1180,7 +1190,7 @@ export function ActivityPlanner({
               <select
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 bg-white"
               >
                 <option value="Pelatihan">Pelatihan</option>
                 <option value="Rapat">Rapat</option>
@@ -1196,7 +1206,7 @@ export function ActivityPlanner({
               <select
                 value={formStatus}
                 onChange={(e) => setFormStatus(Number(e.target.value))}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-white"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 bg-white"
               >
                 <option value={1}>Draft (Konsep)</option>
                 <option value={2}>Terjadwal</option>
@@ -1217,7 +1227,7 @@ export function ActivityPlanner({
                 required
                 value={formStartDate}
                 onChange={(e) => setFormStartDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
 
@@ -1227,7 +1237,7 @@ export function ActivityPlanner({
                 type="datetime-local"
                 value={formEndDate}
                 onChange={(e) => setFormEndDate(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
           </div>
@@ -1240,7 +1250,7 @@ export function ActivityPlanner({
                 value={formLocation}
                 onChange={(e) => setFormLocation(e.target.value)}
                 placeholder="cth. Ruang Rapat Lt. 3 / Hotel Santika"
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
 
@@ -1251,7 +1261,7 @@ export function ActivityPlanner({
                 value={formPicName}
                 onChange={(e) => setFormPicName(e.target.value)}
                 placeholder="cth. Budi Setiawan, S.T."
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
           </div>
@@ -1296,10 +1306,11 @@ export function ActivityPlanner({
             <div className="flex gap-2">
               <input
                 type="text"
+                aria-label="Tugas persiapan baru"
                 value={newChecklistText}
                 onChange={(e) => setNewChecklistText(e.target.value)}
-                placeholder="Tambahkan tugas persiapan..."
-                className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                placeholder="Tambahkan tugas persiapan…"
+                className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
               <button
                 type="button"

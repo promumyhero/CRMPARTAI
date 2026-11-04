@@ -405,7 +405,7 @@ export function MemberDirectory() {
             <select
               value={province}
               onChange={(e) => handleProvinceChange(e.target.value)}
-              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-800 font-semibold"
             >
               <option value="">Semua Provinsi</option>
               {provinceOptions.map((p) => (
@@ -424,7 +424,7 @@ export function MemberDirectory() {
             <select
               value={city}
               onChange={(e) => handleCityChange(e.target.value)}
-              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-800 font-semibold"
             >
               <option value="">Semua Kota / Kab</option>
               {cityOptions.map((c) => (
@@ -443,7 +443,7 @@ export function MemberDirectory() {
             <select
               value={district}
               onChange={(e) => handleDistrictChange(e.target.value)}
-              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-800 font-semibold"
             >
               <option value="">Semua Kecamatan (PAC)</option>
               {districtOptions.map((d) => (
@@ -462,7 +462,7 @@ export function MemberDirectory() {
             <select
               value={subdistrict}
               onChange={(e) => setSubdistrict(e.target.value)}
-              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 font-semibold"
+              className="w-full text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-800 font-semibold"
             >
               <option value="">Semua Kelurahan (Ranting)</option>
               {subdistrictOptions.map((s) => (
@@ -479,13 +479,14 @@ export function MemberDirectory() {
       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <input
             type="text"
-            placeholder="Cari Nama, No. KTA, atau NIK..."
+            aria-label="Cari nama, No. KTA, atau NIK"
+            placeholder="Cari Nama, No. KTA, atau NIK…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors"
           />
         </div>
 
@@ -494,8 +495,9 @@ export function MemberDirectory() {
           {/* Jabatan Filter */}
           <select
             value={position}
+            aria-label="Filter berdasarkan jabatan"
             onChange={(e) => setPosition(e.target.value)}
-            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700 font-medium"
+            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-700 font-medium"
           >
             <option value="">Semua Jabatan</option>
             <option value="Ketua">Ketua</option>
@@ -511,8 +513,9 @@ export function MemberDirectory() {
           {/* Gender Filter */}
           <select
             value={gender}
+            aria-label="Filter berdasarkan jenis kelamin"
             onChange={(e) => setGender(e.target.value)}
-            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500 text-slate-700 font-medium"
+            className="text-xs py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 text-slate-700 font-medium"
           >
             <option value="">Semua Gender</option>
             <option value="Laki-laki">Laki-laki</option>
@@ -756,11 +759,12 @@ export function MemberDirectory() {
                 <span>Tampilkan:</span>
                 <select
                   value={pageSize}
+                  aria-label="Jumlah baris per halaman"
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-slate-700 font-medium focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
                 >
                   <option value={10}>10</option>
                   <option value={15}>15</option>

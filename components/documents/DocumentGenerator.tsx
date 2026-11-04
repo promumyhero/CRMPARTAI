@@ -378,7 +378,7 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
   const handleExportDocx = async () => {
     try {
       setExporting(true);
-      showToast("Memproses .docx", "Menyusun struktur OpenXML Microsoft Word murni...", "info");
+      showToast("Memproses .docx", "Menyusun struktur OpenXML Microsoft Word murni…", "info");
 
       const payload = {
         activityId: selectedActivityId,
@@ -644,17 +644,17 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
                 className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition disabled:opacity-50"
                 title="Simpan dokumen ini ke riwayat database"
               >
-                <Save className="w-4 h-4 text-blue-600" />
-                <span>{savingDoc ? "Menyimpan..." : "Simpan ke Riwayat"}</span>
+                <Save className="w-4 h-4 text-blue-600" aria-hidden="true" />
+                <span>{savingDoc ? "Menyimpan…" : "Simpan ke Riwayat"}</span>
               </button>
 
               <button
                 onClick={handleExportDocx}
                 disabled={exporting}
-                className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition shadow-xs disabled:opacity-50 shrink-0"
+                className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-50 shrink-0 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
-                <Download className="w-4 h-4" />
-                <span>{exporting ? "Menyusun Berkas..." : "Unduh Dokumen Word (.docx)"}</span>
+                <Download className="w-4 h-4" aria-hidden="true" />
+                <span>{exporting ? "Menyusun Berkas…" : "Unduh Dokumen Word (.docx)"}</span>
               </button>
             </div>
           </div>
@@ -849,15 +849,17 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
                   <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">Alamat & Kontak</label>
                   <input
                     type="text"
+                    aria-label="Alamat kop surat"
                     value={kopAddress}
                     onChange={(e) => setKopAddress(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs mb-1"
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs mb-1 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
                   />
                   <input
                     type="text"
+                    aria-label="Kontak kop surat (telepon atau email)"
                     value={kopContact}
                     onChange={(e) => setKopContact(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs"
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
                     placeholder="Telp / Email"
                   />
                 </div>
@@ -1053,7 +1055,7 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
             <div
               className={`mx-auto ${
                 paperSize === "F4" ? "paper-sheet-f4" : "paper-sheet-a4"
-              } rounded-lg border border-slate-200 p-6 sm:p-10 md:p-12 text-slate-900 font-document transition-all min-w-125`}
+              } rounded-lg border border-slate-200 p-6 sm:p-10 md:p-12 text-slate-900 font-document transition-[width,height,padding] min-w-125`}
             >
               {/* 1. KOP SURAT PREVIEW */}
               {showKop && (
@@ -1192,7 +1194,7 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
                 <div className="text-center">
                   <div>Mengetahui,</div>
                   <div className="text-slate-500 mb-16">Penanggung Jawab Kegiatan</div>
-                  <div className="font-semibold text-slate-900">( ............................................ )</div>
+                  <div className="font-semibold text-slate-900">( ____________________________________ )</div>
                 </div>
 
                 <div className="text-center">
