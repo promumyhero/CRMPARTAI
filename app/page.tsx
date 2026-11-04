@@ -43,7 +43,15 @@ const VALID_TABS: ReadonlyArray<ActiveTab> = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("activities");
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== "undefined") {
+      const paramTab = new URLSearchParams(window.location.search).get("tab") as ActiveTab | null;
+      if (paramTab && VALID_TABS.includes(paramTab)) {
+        return paramTab;
+      }
+    }
+    return "activities";
+  });
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUserData | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -63,12 +71,13 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    const handlePopState = () => {
       const paramTab = new URLSearchParams(window.location.search).get("tab") as ActiveTab | null;
       if (paramTab && VALID_TABS.includes(paramTab)) {
         setActiveTab(paramTab);
       }
-    }
+    };
+    window.addEventListener("popstate", handlePopState);
 
     let isMounted = true;
     fetch("/api/auth/me")
@@ -92,6 +101,7 @@ export default function Home() {
 
     return () => {
       isMounted = false;
+      window.removeEventListener("popstate", handlePopState);
     };
   }, []);
 
