@@ -85,81 +85,93 @@ export function Navbar({
           </div>
 
           {/* Desktop & Tablet Navigation Tabs (lg and md) */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
+          <nav role="tablist" aria-label="Navigasi Utama" className="hidden md:flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
             <button
+              role="tab"
+              aria-selected={activeTab === "activities"}
               onClick={() => onTabChange("activities")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 activeTab === "activities"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
               }`}
             >
-              <CalendarDays className="w-3.5 h-3.5" />
+              <CalendarDays className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Agenda Kegiatan</span>
             </button>
 
             {canViewBudget && (
               <button
+                role="tab"
+                aria-selected={activeTab === "budget"}
                 onClick={() => onTabChange("budget")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   activeTab === "budget"
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
                 }`}
               >
-                <Calculator className="w-3.5 h-3.5" />
+                <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Anggaran & RAB</span>
               </button>
             )}
 
             <button
+              role="tab"
+              aria-selected={activeTab === "documents"}
               onClick={() => onTabChange("documents")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 activeTab === "documents"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
               }`}
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Format Surat</span>
             </button>
 
             <button
+              role="tab"
+              aria-selected={activeTab === "members"}
               onClick={() => onTabChange("members")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 activeTab === "members"
                   ? "bg-white text-blue-600 shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Data Anggota & Kader</span>
             </button>
 
             {canManageTemplates && (
               <button
+                role="tab"
+                aria-selected={activeTab === "templates"}
                 onClick={() => onTabChange("templates")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                   activeTab === "templates"
                     ? "bg-white text-blue-600 shadow-xs"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
                 }`}
               >
-                <Sliders className="w-3.5 h-3.5" />
+                <Sliders className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Template</span>
               </button>
             )}
 
             {canManageUsers && (
               <button
+                role="tab"
+                aria-selected={activeTab === "users"}
                 onClick={() => onTabChange("users")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500 ${
                   activeTab === "users"
                     ? "bg-white text-purple-600 shadow-xs"
                     : "text-slate-600 hover:text-purple-700 hover:bg-white/50"
                 }`}
               >
-                <Shield className="w-3.5 h-3.5" />
+                <Shield className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Kelola User</span>
               </button>
             )}
@@ -209,18 +221,18 @@ export function Navbar({
                 <button
                   onClick={onLogout}
                   title="Logout / Keluar Sesi"
-                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
                   aria-label="Logout"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={onOpenAuth}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
               >
-                <LogIn className="w-3.5 h-3.5" />
+                <LogIn className="w-3.5 h-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">Masuk</span>
               </button>
             )}
@@ -228,81 +240,93 @@ export function Navbar({
         </div>
 
         {/* Mobile & Small Device Responsive Navigation Bar */}
-        <div className="flex md:hidden items-center justify-between py-2 border-t border-slate-100 overflow-x-auto gap-1 text-xs no-scrollbar">
+        <div role="tablist" aria-label="Navigasi Mobile" className="flex md:hidden items-center justify-between py-2 border-t border-slate-100 overflow-x-auto gap-1 text-xs no-scrollbar">
           <button
+            role="tab"
+            aria-selected={activeTab === "activities"}
             onClick={() => onTabChange("activities")}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
               activeTab === "activities"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <CalendarDays className="w-3.5 h-3.5" />
+            <CalendarDays className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Kegiatan</span>
           </button>
 
           {canViewBudget && (
             <button
+              role="tab"
+              aria-selected={activeTab === "budget"}
               onClick={() => onTabChange("budget")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 activeTab === "budget"
                   ? "bg-blue-600 text-white shadow-xs"
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              <Calculator className="w-3.5 h-3.5" />
+              <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Budget</span>
             </button>
           )}
 
           <button
+            role="tab"
+            aria-selected={activeTab === "documents"}
             onClick={() => onTabChange("documents")}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
               activeTab === "documents"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Surat</span>
           </button>
 
           <button
+            role="tab"
+            aria-selected={activeTab === "members"}
             onClick={() => onTabChange("members")}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
               activeTab === "members"
                 ? "bg-blue-600 text-white shadow-xs"
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Kader</span>
           </button>
 
           {canManageTemplates && (
             <button
+              role="tab"
+              aria-selected={activeTab === "templates"}
               onClick={() => onTabChange("templates")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 activeTab === "templates"
                   ? "bg-blue-600 text-white shadow-xs"
                   : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              <Sliders className="w-3.5 h-3.5" />
+              <Sliders className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Template</span>
             </button>
           )}
 
           {canManageUsers && (
             <button
+              role="tab"
+              aria-selected={activeTab === "users"}
               onClick={() => onTabChange("users")}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-purple-500 ${
                 activeTab === "users"
                   ? "bg-purple-600 text-white shadow-xs"
                   : "text-purple-700 hover:bg-purple-50"
               }`}
             >
-              <Shield className="w-3.5 h-3.5" />
+              <Shield className="w-3.5 h-3.5" aria-hidden="true" />
               <span>User</span>
             </button>
           )}

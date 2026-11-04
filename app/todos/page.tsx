@@ -51,7 +51,7 @@ export default function TodosPage() {
     <div className="min-h-screen p-8 bg-slate-50 font-sans">
       <div className="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <h1 className="text-xl font-bold text-slate-800 mb-4">Supabase Todos Test Page</h1>
-        <Suspense fallback={<p className="text-sm text-slate-500">Loading todos from Supabase...</p>}>
+        <Suspense fallback={<p className="text-sm text-slate-500">Loading todos from Supabase…</p>}>
           <TodosList />
         </Suspense>
       </div>

@@ -67,11 +67,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         const IconComponent = typeConfig.icon;
 
         return (
-          <div className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-lg shadow-slate-900/5 border border-slate-200/90 p-3.5 flex items-start gap-3 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-lg shadow-slate-900/5 border border-slate-200/90 p-3.5 flex items-start gap-3 pointer-events-auto transition-[opacity,transform] animate-in fade-in slide-in-from-top-2 duration-200"
+          >
             <div
               className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${typeConfig.iconClass}`}
             >
-              <IconComponent className="w-4 h-4" />
+              <IconComponent className="w-4 h-4" aria-hidden="true" />
             </div>
 
             <div className="flex-1 min-w-0 pr-1">
@@ -90,7 +94,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                       action.onClick();
                       toast.dismiss(t);
                     }}
-                    className="text-xs font-semibold px-2.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-md transition"
+                    className="text-xs font-semibold px-2.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-md transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-900 cursor-pointer"
                   >
                     {action.label}
                   </button>
@@ -100,10 +104,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
             <button
               onClick={() => toast.dismiss(t)}
-              className="text-slate-400 hover:text-slate-600 p-1 -mr-1 -mt-1 rounded-md hover:bg-slate-100 transition"
+              className="text-slate-400 hover:text-slate-600 p-1 -mr-1 -mt-1 rounded-md hover:bg-slate-100 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 cursor-pointer"
               aria-label="Tutup notifikasi"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
         );
@@ -116,9 +120,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const showDeleteToast = useCallback(
     (itemName: string, onUndo?: () => void) => {
       toast.custom((t) => (
-        <div className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-xl shadow-rose-950/10 border border-rose-200 p-3.5 flex items-start gap-3 pointer-events-auto transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+        <div
+          role="status"
+          aria-live="polite"
+          className="w-full max-w-sm sm:max-w-md bg-white rounded-xl shadow-xl shadow-rose-950/10 border border-rose-200 p-3.5 flex items-start gap-3 pointer-events-auto transition-[opacity,transform] animate-in fade-in slide-in-from-top-2 duration-200"
+        >
           <div className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
           </div>
 
           <div className="flex-1 min-w-0 pr-1">
@@ -140,7 +148,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     onUndo();
                     toast.dismiss(t);
                   }}
-                  className="text-xs font-bold px-2.5 py-1 text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition shadow-2xs"
+                  className="text-xs font-bold px-2.5 py-1 text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-colors shadow-2xs focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
                 >
                   Urungkan Hapus
                 </button>
@@ -150,10 +158,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
           <button
             onClick={() => toast.dismiss(t)}
-            className="text-slate-400 hover:text-slate-600 p-1 -mr-1 -mt-1 rounded-md hover:bg-slate-100 transition"
+            className="text-slate-400 hover:text-slate-600 p-1 -mr-1 -mt-1 rounded-md hover:bg-slate-100 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500 cursor-pointer"
             aria-label="Tutup notifikasi"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       ), { duration: 4500 });

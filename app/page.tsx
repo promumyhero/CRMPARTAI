@@ -33,6 +33,15 @@ const UserManager = dynamic(
   { loading: () => <UserManagerSkeleton /> }
 );
 
+const VALID_TABS: ReadonlyArray<ActiveTab> = [
+  "activities",
+  "budget",
+  "documents",
+  "members",
+  "templates",
+  "users",
+];
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("activities");
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -44,7 +53,23 @@ export default function Home() {
 
   const { showToast } = useToast();
 
+  const updateActiveTab = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const paramTab = new URLSearchParams(window.location.search).get("tab") as ActiveTab | null;
+      if (paramTab && VALID_TABS.includes(paramTab)) {
+        setActiveTab(paramTab);
+      }
+    }
+
     let isMounted = true;
     fetch("/api/auth/me")
       .then((res) => res.json())
@@ -75,7 +100,7 @@ export default function Home() {
       await fetch("/api/auth/logout", { method: "POST" });
       setCurrentUser(null);
       showToast("Berhasil Keluar", "Sesi login Anda telah diakhiri", "info");
-      setActiveTab("activities");
+      updateActiveTab("activities");
     } catch {
       setCurrentUser(null);
     }
@@ -88,12 +113,12 @@ export default function Home() {
 
   const handleNavigateToBudget = (activityId: number) => {
     setLinkedActivityId(activityId);
-    setActiveTab("budget");
+    updateActiveTab("budget");
   };
 
   const handleNavigateToLetter = (activityId: number) => {
     setLinkedActivityId(activityId);
-    setActiveTab("documents");
+    updateActiveTab("documents");
   };
 
   // Loading Screen while checking auth session cookie
@@ -104,8 +129,8 @@ export default function Home() {
           C
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-300 font-medium">
-          <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-          <span>Memeriksa sesi keamanan...</span>
+          <RefreshCw className="w-4 h-4 animate-spin text-blue-400" aria-hidden="true" />
+          <span>Memeriksa sesi keamanan…</span>
         </div>
       </div>
     );
@@ -126,14 +151,14 @@ export default function Home() {
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
+        onTabChange={updateActiveTab}
         onOpenAuth={() => setAuthModalOpen(true)}
         currentUser={currentUser}
         onLogout={handleLogout}
       />
 
       {/* Main Content Area (Tailored margins for mobile, tablet, and desktop) */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
+      <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
         {activeTab === "activities" && (
           <ActivityPlanner
             onSelectBudget={handleNavigateToBudget}
@@ -163,7 +188,7 @@ export default function Home() {
       <footer className="bg-white border-t border-slate-200 py-3 sm:py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
           <div className="font-medium text-slate-700 flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-blue-600" />
+            <Shield className="w-3.5 h-3.5 text-blue-600" aria-hidden="true" />
             <span>
               <b>CRM Partai</b> • Sistem Manajemen Kader, Kegiatan & Anggaran
             </span>
