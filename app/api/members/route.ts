@@ -7,7 +7,13 @@ import type { NewPartyMember } from "@/lib/db/schema";
 export async function GET(req: Request) {
   try {
     const session = await getSessionUser();
-    const canViewNik = session ? hasPermission(session.normalizedRole, "members:view_nik") : false;
+    if (!session || !hasPermission(session.normalizedRole, "members:view")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Silakan masuk terlebih dahulu." },
+        { status: 401 }
+      );
+    }
+    const canViewNik = hasPermission(session.normalizedRole, "members:view_nik");
 
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") || undefined;

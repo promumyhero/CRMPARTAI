@@ -27,22 +27,26 @@ export async function POST(req: Request) {
     }
 
     const { email, password, rememberMe } = parseResult.data;
+    const ipRateKey = `ip:${ip}`;
     const rateLimitKey = `${ip}:${email}`;
 
-    // 3. Periksa Brute-Force Rate Limit
-    const rateCheck = checkLoginRateLimit(rateLimitKey);
-    if (!rateCheck.allowed) {
-      const minutes = Math.ceil((rateCheck.retryAfterSeconds || 60) / 60);
+    // 3. Periksa Brute-Force Rate Limit (Per-IP dan Per-IP+Email)
+    const ipRateCheck = checkLoginRateLimit(ipRateKey, 15);
+    const rateCheck = checkLoginRateLimit(rateLimitKey, 5);
+    if (!ipRateCheck.allowed || !rateCheck.allowed) {
+      const retryAfter = rateCheck.retryAfterSeconds || ipRateCheck.retryAfterSeconds || 900;
+      const minutes = Math.ceil(retryAfter / 60);
       return NextResponse.json(
         {
-          error: `Terlalu banyak percobaan login yang gagal. Akun sementara diblokir demi keamanan. Silakan coba lagi dalam ${minutes} menit.`,
+          error: `Terlalu banyak percobaan login yang gagal. Akses sementara diblokir demi keamanan. Silakan coba lagi dalam ${minutes} menit.`,
           locked: true,
-          retryAfterSeconds: rateCheck.retryAfterSeconds,
+          retryAfterSeconds: retryAfter,
         },
         {
           status: 429,
           headers: {
-            "Retry-After": String(rateCheck.retryAfterSeconds || 900),
+            "Retry-After": String(retryAfter),
+            "Cache-Control": "no-store, no-cache, must-revalidate",
           },
         }
       );
@@ -54,13 +58,17 @@ export async function POST(req: Request) {
     // 5. Mitigasi Timing Attack: Selalu jalankan komparasi bcrypt bahkan jika email tidak ditemukan
     if (!user) {
       await comparePassword(password, DUMMY_PASSWORD_HASH);
-      const failResult = recordFailedLogin(rateLimitKey);
+      recordFailedLogin(ipRateKey, 15);
+      const failResult = recordFailedLogin(rateLimitKey, 5);
       return NextResponse.json(
         {
           error: "Email atau kata sandi tidak valid.",
           remainingAttempts: failResult.remainingAttempts,
         },
-        { status: 401 }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        }
       );
     }
 
@@ -68,25 +76,33 @@ export async function POST(req: Request) {
     if (user.status === "suspended") {
       return NextResponse.json(
         { error: "Akun Anda telah dinonaktifkan oleh Administrator. Hubungi pimpinan DPD." },
-        { status: 403 }
+        {
+          status: 403,
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        }
       );
     }
 
     // 7. Verifikasi kecocokan password
     const isPasswordValid = await comparePassword(password, user.passwordHash);
     if (!isPasswordValid) {
-      const failResult = recordFailedLogin(rateLimitKey);
+      recordFailedLogin(ipRateKey, 15);
+      const failResult = recordFailedLogin(rateLimitKey, 5);
       return NextResponse.json(
         {
           error: "Email atau kata sandi tidak valid.",
           remainingAttempts: failResult.remainingAttempts,
         },
-        { status: 401 }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        }
       );
     }
 
     // 8. Berhasil login: Reset counter rate limit
     resetLoginRateLimit(rateLimitKey);
+    resetLoginRateLimit(ipRateKey);
 
     // 9. Catat waktu login terakhir
     await DataService.recordLogin(user.id);
@@ -107,21 +123,26 @@ export async function POST(req: Request) {
     );
 
     // 11. Format response & pasang HttpOnly Secure Cookie
-    const response = NextResponse.json({
-      success: true,
-      message: `Selamat datang, ${user.name}!`,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        normalizedRole: normalizeRole(user.role),
-        phone: user.phone,
-        province: user.province,
-        city: user.city,
-        district: user.district,
+    const response = NextResponse.json(
+      {
+        success: true,
+        message: `Selamat datang, ${user.name}!`,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          normalizedRole: normalizeRole(user.role),
+          phone: user.phone,
+          province: user.province,
+          city: user.city,
+          district: user.district,
+        },
       },
-    });
+      {
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
 
     response.cookies.set({
       name: COOKIE_NAME,

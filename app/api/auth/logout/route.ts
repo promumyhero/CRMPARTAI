@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { COOKIE_NAME, SECURE_COOKIE_OPTIONS } from "@/lib/auth/session";
 
 export async function POST() {
-  const response = NextResponse.json({ success: true, message: "Sesi berhasil diakhiri." });
+  const response = NextResponse.json(
+    { success: true, message: "Sesi berhasil diakhiri." },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+  );
   response.cookies.set({
     name: COOKIE_NAME,
     value: "",

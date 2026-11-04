@@ -10,7 +10,7 @@ import { TemplateCustomizer } from "@/components/templates/TemplateCustomizer";
 import { MemberDirectory } from "@/components/members/MemberDirectory";
 import { useToast } from "@/components/ui/Toast";
 import { normalizeRole, hasPermission } from "@/lib/auth/roles";
-import { Shield, RefreshCw } from "lucide-react";
+import { Shield, RefreshCw, Lock } from "lucide-react";
 import {
   BudgetPlannerSkeleton,
   DocumentGeneratorSkeleton,
@@ -80,7 +80,7 @@ export default function Home() {
     window.addEventListener("popstate", handlePopState);
 
     let isMounted = true;
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { authenticated?: boolean; user?: AuthUserData }) => {
         if (isMounted) {
@@ -153,8 +153,15 @@ export default function Home() {
 
   const normRole = normalizeRole(currentUser.role);
   const canViewBudget = hasPermission(normRole, "budget:view");
+  const canGenerateDocs = hasPermission(normRole, "documents:generate");
   const canManageTemplates = hasPermission(normRole, "templates:manage");
   const canManageUsers = hasPermission(normRole, "users:manage");
+
+  const isTabRestricted =
+    (activeTab === "budget" && !canViewBudget) ||
+    (activeTab === "documents" && !canGenerateDocs) ||
+    (activeTab === "templates" && !canManageTemplates) ||
+    (activeTab === "users" && !canManageUsers);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -169,6 +176,25 @@ export default function Home() {
 
       {/* Main Content Area (Tailored margins for mobile, tablet, and desktop) */}
       <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
+        {isTabRestricted && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center max-w-lg mx-auto my-8 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-3 border border-amber-200">
+              <Lock className="w-6 h-6" aria-hidden="true" />
+            </div>
+            <h2 className="text-base font-bold text-slate-900">Akses Modul Dibatasi</h2>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Peran akun Anda saat ini (<b>{normRole.toUpperCase()}</b>) tidak memiliki izin untuk mengakses modul ini.
+            </p>
+            <button
+              type="button"
+              onClick={() => updateActiveTab("activities")}
+              className="mt-4 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              Kembali ke Agenda Kegiatan
+            </button>
+          </div>
+        )}
+
         {activeTab === "activities" && (
           <ActivityPlanner
             onSelectBudget={handleNavigateToBudget}
@@ -183,7 +209,7 @@ export default function Home() {
           />
         )}
 
-        {activeTab === "documents" && (
+        {activeTab === "documents" && canGenerateDocs && (
           <DocumentGenerator initialActivityId={linkedActivityId} />
         )}
 

@@ -40,7 +40,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 }
 
 /**
- * Returns current session user or fallback default user for backward-compatible routes
+ * Returns current session user or least-privilege viewer fallback
  */
 export async function getCurrentUserOrDefault(): Promise<{
   id: number;
@@ -58,10 +58,10 @@ export async function getCurrentUserOrDefault(): Promise<{
     };
   }
   return {
-    id: 1,
-    email: "admin@crmforu.com",
-    name: "Administrator Utama",
-    role: "superadmin",
+    id: 0,
+    email: "anonymous@crmforu.local",
+    name: "Tamu (Tidak Terautentikasi)",
+    role: "viewer",
   };
 }
 

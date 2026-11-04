@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateOfficialDocx, type DocxGenerateOptions } from "@/lib/docx/generator";
 import { DataService } from "@/lib/services/data-store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 type ExportPayload = DocxGenerateOptions & {
   activityId?: number;
@@ -9,6 +11,14 @@ type ExportPayload = DocxGenerateOptions & {
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "documents:generate")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Anda tidak memiliki izin untuk mengekspor dokumen resmi." },
+        { status: 403 }
+      );
+    }
+
     const body = (await req.json()) as ExportPayload;
 
     if (body.activityId && (!body.budgetItems || body.budgetItems.length === 0)) {

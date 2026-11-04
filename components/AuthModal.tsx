@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Modal } from "./ui/Modal";
 import { useToast } from "./ui/Toast";
-import { KeyRound, Mail, User, Shield } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 
 export interface AuthUser {
   id: number;
@@ -19,11 +19,8 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
-  const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("admin");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -31,28 +28,21 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     e.preventDefault();
     setLoading(true);
 
-    const url = isRegister ? "/api/auth/register" : "/api/auth/login";
-    const body = isRegister ? { name, email, password, role } : { email, password };
-
     try {
-      const res = await fetch(url, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
       const data = (await res.json()) as { error?: string; user?: AuthUser };
       if (!res.ok || !data.user) {
-        showToast("Gagal", data.error || "Terjadi kesalahan", "error");
+        showToast("Gagal Masuk", data.error || "Kredensial tidak valid", "error");
         setLoading(false);
         return;
       }
 
-      showToast(
-        "Berhasil",
-        isRegister ? "Akun berhasil didaftarkan" : `Selamat datang kembali, ${data.user.name}`,
-        "success"
-      );
+      showToast("Berhasil Masuk", `Selamat datang kembali, ${data.user.name}`, "success");
       onSuccess(data.user);
       onClose();
     } catch {
@@ -66,37 +56,11 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isRegister ? "Tambah / Daftar Anggota Tim" : "Masuk ke Sistem CRMForU"}
-      description={
-        isRegister
-          ? "Daftarkan akun anggota tim baru untuk kolaborasi kegiatan dan RAB"
-          : "Gunakan akun yang telah terdaftar atau akun default (admin@crmforu.com / admin123)"
-      }
+      title="Masuk ke Sistem CRM Partai"
+      description="Masukkan alamat email dan kata sandi akun resmi yang terdaftar."
       maxWidth="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-        {isRegister && (
-          <div>
-            <label htmlFor="modal-reg-name" className="block text-xs font-semibold text-slate-700 mb-1">
-              Nama Lengkap
-            </label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" aria-hidden="true" />
-              <input
-                id="modal-reg-name"
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="cth. Rian Pratama, S.Kom"
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
-              />
-            </div>
-          </div>
-        )}
-
         <div>
           <label htmlFor="modal-email" className="block text-xs font-semibold text-slate-700 mb-1">
             Alamat Email
@@ -128,7 +92,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               id="modal-password"
               name="password"
               type="password"
-              autoComplete={isRegister ? "new-password" : "current-password"}
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -138,44 +102,13 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
           </div>
         </div>
 
-        {isRegister && (
-          <div>
-            <label htmlFor="modal-role" className="block text-xs font-semibold text-slate-700 mb-1">
-              Peran / Role
-            </label>
-            <div className="relative">
-              <Shield className="w-4 h-4 text-slate-400 absolute left-3 top-3" aria-hidden="true" />
-              <select
-                id="modal-role"
-                name="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 bg-white"
-              >
-                <option value="admin">Administrator (Akses Penuh)</option>
-                <option value="member">Anggota Tim / Member (Operator)</option>
-              </select>
-            </div>
-          </div>
-        )}
-
         <div className="pt-2">
           <button
             type="submit"
             disabled={loading}
             className="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? "Memproses…" : isRegister ? "Daftarkan Pengguna" : "Masuk Sekarang"}
-          </button>
-        </div>
-
-        <div className="text-center pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => setIsRegister(!isRegister)}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-          >
-            {isRegister ? "Sudah punya akun? Masuk di sini" : "Belum punya akun? Buat akun tim baru"}
+            {loading ? "Memverifikasi…" : "Masuk Sekarang"}
           </button>
         </div>
       </form>

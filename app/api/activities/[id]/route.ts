@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 interface UpdateActivityPayload {
   title?: string;
@@ -12,8 +14,13 @@ interface UpdateActivityPayload {
   checklist?: Array<{ id: string; text: string; done: boolean }>;
 }
 
-export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "activities:view")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 401 });
+    }
+
     const { id } = await context.params;
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
@@ -30,13 +37,18 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
 
     return NextResponse.json({ activity, budgetItems, documents });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error fetching activity";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("GET /api/activities/[id] error:", err);
+    return NextResponse.json({ error: "Gagal mengambil detail kegiatan." }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "activities:edit")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { id } = await context.params;
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
@@ -61,13 +73,18 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     return NextResponse.json({ activity: updated });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error updating activity";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("PUT /api/activities/[id] error:", err);
+    return NextResponse.json({ error: "Gagal memperbarui kegiatan." }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "activities:delete")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { id } = await context.params;
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
@@ -81,7 +98,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error deleting activity";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("DELETE /api/activities/[id] error:", err);
+    return NextResponse.json({ error: "Gagal menghapus kegiatan." }, { status: 500 });
   }
 }

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -7,6 +9,11 @@ interface RouteParams {
 
 export async function GET(_req: Request, { params }: RouteParams) {
   try {
+    const session = await getSessionUser();
+    if (!session) {
+      return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+    }
+
     const { id } = await params;
     const docId = parseInt(id, 10);
     if (isNaN(docId)) {
@@ -20,13 +27,18 @@ export async function GET(_req: Request, { params }: RouteParams) {
 
     return NextResponse.json({ document: doc });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Gagal mengambil data dokumen";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("GET /api/documents/[id] error:", err);
+    return NextResponse.json({ error: "Gagal mengambil data dokumen." }, { status: 500 });
   }
 }
 
 export async function DELETE(_req: Request, { params }: RouteParams) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "documents:generate")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { id } = await params;
     const docId = parseInt(id, 10);
     if (isNaN(docId)) {
@@ -40,7 +52,7 @@ export async function DELETE(_req: Request, { params }: RouteParams) {
 
     return NextResponse.json({ success: true, message: "Dokumen berhasil dihapus." });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Gagal menghapus dokumen";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("DELETE /api/documents/[id] error:", err);
+    return NextResponse.json({ error: "Gagal menghapus dokumen." }, { status: 500 });
   }
 }

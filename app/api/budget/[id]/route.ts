@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 interface UpdateBudgetItemPayload {
   category?: string;
@@ -12,6 +14,11 @@ interface UpdateBudgetItemPayload {
 
 export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "budget:edit")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { id } = await context.params;
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
@@ -26,13 +33,18 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error updating budget item";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("PUT /api/budget/[id] error:", err);
+    return NextResponse.json({ error: "Gagal memperbarui pos anggaran." }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "budget:edit")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { id } = await context.params;
     const numId = parseInt(id, 10);
     if (isNaN(numId)) {
@@ -46,7 +58,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error deleting budget item";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("DELETE /api/budget/[id] error:", err);
+    return NextResponse.json({ error: "Gagal menghapus pos anggaran." }, { status: 500 });
   }
 }

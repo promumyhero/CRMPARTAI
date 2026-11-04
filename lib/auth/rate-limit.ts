@@ -13,6 +13,7 @@ interface AttemptRecord {
 const attemptsMap = new Map<string, AttemptRecord>();
 
 const MAX_ATTEMPTS = 5;
+const MAX_STORE_ENTRIES = 5000;
 const WINDOW_MS = 15 * 60 * 1000; // 15 menit
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 menit penalti
 
@@ -42,14 +43,14 @@ export interface RateLimitResult {
 /**
  * Cek apakah percobaan login diizinkan
  */
-export function checkLoginRateLimit(identifier: string): RateLimitResult {
+export function checkLoginRateLimit(identifier: string, maxAttempts: number = MAX_ATTEMPTS): RateLimitResult {
   const now = Date.now();
   const record = attemptsMap.get(identifier);
 
   if (!record) {
     return {
       allowed: true,
-      remainingAttempts: MAX_ATTEMPTS,
+      remainingAttempts: maxAttempts,
       lockedUntil: null,
     };
   }
@@ -70,14 +71,14 @@ export function checkLoginRateLimit(identifier: string): RateLimitResult {
     attemptsMap.delete(identifier);
     return {
       allowed: true,
-      remainingAttempts: MAX_ATTEMPTS,
+      remainingAttempts: maxAttempts,
       lockedUntil: null,
     };
   }
 
-  const remaining = Math.max(0, MAX_ATTEMPTS - record.count);
+  const remaining = Math.max(0, maxAttempts - record.count);
   return {
-    allowed: record.count < MAX_ATTEMPTS,
+    allowed: record.count < maxAttempts,
     remainingAttempts: remaining,
     lockedUntil: null,
   };
@@ -86,11 +87,15 @@ export function checkLoginRateLimit(identifier: string): RateLimitResult {
 /**
  * Catat percobaan login yang gagal
  */
-export function recordFailedLogin(identifier: string): RateLimitResult {
+export function recordFailedLogin(identifier: string, maxAttempts: number = MAX_ATTEMPTS): RateLimitResult {
   const now = Date.now();
   const record = attemptsMap.get(identifier);
 
   if (!record || now - record.firstAttemptAt > WINDOW_MS) {
+    if (attemptsMap.size >= MAX_STORE_ENTRIES) {
+      const oldestKey = attemptsMap.keys().next().value;
+      if (oldestKey) attemptsMap.delete(oldestKey);
+    }
     const newRecord: AttemptRecord = {
       count: 1,
       firstAttemptAt: now,
@@ -99,14 +104,14 @@ export function recordFailedLogin(identifier: string): RateLimitResult {
     attemptsMap.set(identifier, newRecord);
     return {
       allowed: true,
-      remainingAttempts: MAX_ATTEMPTS - 1,
+      remainingAttempts: maxAttempts - 1,
       lockedUntil: null,
     };
   }
 
   record.count += 1;
 
-  if (record.count >= MAX_ATTEMPTS) {
+  if (record.count >= maxAttempts) {
     record.lockedUntil = now + LOCKOUT_MS;
     const retryAfterSeconds = Math.ceil(LOCKOUT_MS / 1000);
     return {
@@ -119,7 +124,7 @@ export function recordFailedLogin(identifier: string): RateLimitResult {
 
   return {
     allowed: true,
-    remainingAttempts: MAX_ATTEMPTS - record.count,
+    remainingAttempts: maxAttempts - record.count,
     lockedUntil: null,
   };
 }

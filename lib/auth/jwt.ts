@@ -37,15 +37,24 @@ export async function createSessionToken(payload: TokenPayload, expiresIn: strin
 
 export async function verifySessionToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, SECRET_KEY, {
+      algorithms: ["HS256"],
+    });
+    if (
+      typeof payload.userId !== "number" ||
+      typeof payload.email !== "string" ||
+      typeof payload.role !== "string"
+    ) {
+      return null;
+    }
     return {
-      userId: payload.userId as number,
-      email: payload.email as string,
-      name: payload.name as string,
-      role: payload.role as string,
-      province: (payload.province as string) || null,
-      city: (payload.city as string) || null,
-      district: (payload.district as string) || null,
+      userId: payload.userId,
+      email: payload.email,
+      name: typeof payload.name === "string" ? payload.name : payload.email,
+      role: payload.role,
+      province: typeof payload.province === "string" ? payload.province : null,
+      city: typeof payload.city === "string" ? payload.city : null,
+      district: typeof payload.district === "string" ? payload.district : null,
     };
   } catch {
     return null;

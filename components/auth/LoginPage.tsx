@@ -11,9 +11,8 @@ import {
   AlertTriangle,
   ArrowRight,
   ShieldCheck,
-  UserCheck,
+  Building2,
 } from "lucide-react";
-import { type AppRole } from "@/lib/auth/roles";
 
 export interface AuthUserData {
   id: number;
@@ -31,68 +30,6 @@ interface LoginPageProps {
   onLoginSuccess: (user: AuthUserData) => void;
 }
 
-const DEMO_ACCOUNTS: Array<{
-  roleId: AppRole;
-  title: string;
-  email: string;
-  pass: string;
-  badge: string;
-  color: string;
-  bg: string;
-  desc: string;
-}> = [
-  {
-    roleId: "superadmin",
-    title: "Super Admin (DPD Kalbar)",
-    email: "admin@crmforu.com",
-    pass: "admin123",
-    badge: "Akses Penuh",
-    color: "text-purple-700 border-purple-200",
-    bg: "bg-purple-50 hover:bg-purple-100/80",
-    desc: "Akses seluruh modul, kelola user, template & sinkronisasi database.",
-  },
-  {
-    roleId: "admin_dpc",
-    title: "Admin DPC (Kota Pontianak)",
-    email: "dpc.pontianak@crmforu.com",
-    pass: "dpc123",
-    badge: "Tingkat Kota",
-    color: "text-blue-700 border-blue-200",
-    bg: "bg-blue-50 hover:bg-blue-100/80",
-    desc: "Kelola kader, kegiatan, RAB anggaran, & surat resmi tingkat kota.",
-  },
-  {
-    roleId: "admin_pac",
-    title: "Admin PAC (Pontianak Kota)",
-    email: "pac.pontianakkota@crmforu.com",
-    pass: "pac123",
-    badge: "Tingkat Kecamatan",
-    color: "text-emerald-700 border-emerald-200",
-    bg: "bg-emerald-50 hover:bg-emerald-100/80",
-    desc: "Kelola struktur anggota & pengurus kelurahan/ranting di kecamatannya.",
-  },
-  {
-    roleId: "operator",
-    title: "Operator / Staf Data",
-    email: "operator@crmforu.com",
-    pass: "operator123",
-    badge: "Sekretariat",
-    color: "text-amber-700 border-amber-200",
-    bg: "bg-amber-50 hover:bg-amber-100/80",
-    desc: "Input & verifikasi kader, cetak KTA, dan draft administrasi.",
-  },
-  {
-    roleId: "viewer",
-    title: "Viewer / Saksi / Tamu",
-    email: "kader@crmforu.com",
-    pass: "kader123",
-    badge: "Read Only",
-    color: "text-slate-700 border-slate-200",
-    bg: "bg-slate-50 hover:bg-slate-100/80",
-    desc: "Akses lihat data direktori anggota (NIK disensor otomatis).",
-  },
-];
-
 export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -100,18 +37,14 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [isLocked, setIsLocked] = useState(false);
-
-  const handleQuickFill = (accEmail: string, accPass: string) => {
-    setEmail(accEmail);
-    setPassword(accPass);
-    setErrorMessage(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMessage("Silakan masukkan email dan kata sandi.");
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setErrorMessage("Silakan masukkan alamat email dan kata sandi Anda.");
       return;
     }
 
@@ -122,25 +55,35 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, rememberMe }),
+        body: JSON.stringify({ email: trimmedEmail, password, rememberMe }),
       });
 
-      const data = await res.json();
+      const data = (await res.json()) as {
+        error?: string;
+        remainingAttempts?: number;
+        user?: AuthUserData;
+      };
 
       if (!res.ok) {
         if (res.status === 429) {
           setIsLocked(true);
+          setRemainingAttempts(0);
+        } else if (typeof data.remainingAttempts === "number") {
+          setRemainingAttempts(data.remainingAttempts);
         }
         setErrorMessage(data.error || "Gagal masuk. Periksa kembali email dan kata sandi Anda.");
         setLoading(false);
         return;
       }
 
+      setIsLocked(false);
+      setRemainingAttempts(null);
+
       if (data.user) {
         onLoginSuccess(data.user);
       }
     } catch {
-      setErrorMessage("Terjadi kendala koneksi ke server. Pastikan jaringan stabil.");
+      setErrorMessage("Terjadi kendala koneksi ke server. Pastikan jaringan Anda stabil.");
     } finally {
       setLoading(false);
     }
@@ -226,7 +169,14 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
               }`}
             >
               <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <div className="flex-1 font-medium">{errorMessage}</div>
+              <div className="flex-1">
+                <div className="font-medium">{errorMessage}</div>
+                {remainingAttempts !== null && remainingAttempts > 0 && !isLocked && (
+                  <div className="mt-1 text-[11px] text-amber-700">
+                    Sisa percobaan sebelum penguncian sementara: <b>{remainingAttempts}x</b>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -234,7 +184,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
           <form onSubmit={handleSubmit} className="mt-5 space-y-4">
             <div>
               <label htmlFor="login-email" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Alamat Email
+                Alamat Email Resmi
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" aria-hidden="true" />
@@ -247,7 +197,7 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@crmforu.com"
+                  placeholder="nama@organisasi.id"
                   className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500 transition-colors bg-slate-50/50 hover:bg-white"
                 />
               </div>
@@ -289,9 +239,9 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
-                <span>Ingat saya selama 30 hari</span>
+                <span>Ingat perangkat ini (30 hari)</span>
               </label>
-              <span className="text-slate-400 text-[11px]">Sesi aman HttpOnly</span>
+              <span className="text-slate-400 text-[11px]">Sesi Terenkripsi HttpOnly</span>
             </div>
 
             <button
@@ -303,43 +253,26 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <span>Memverifikasi kredensial…</span>
               ) : (
                 <>
-                  <span>Masuk ke Dashboard</span>
+                  <span>Masuk ke Sistem</span>
                   <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Quick Demo Switcher / Role Previews */}
+          {/* Official Access Notice (Non-interactive, zero credential exposure) */}
           <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Uji Coba Cepat Hak Akses (1-Click Demo)</span>
-              </span>
-              <span className="text-[10px] text-slate-400">Klik untuk mengisi</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleQuickFill(acc.email, acc.pass)}
-                  className={`p-2.5 rounded-xl border text-left transition text-xs flex flex-col justify-between cursor-pointer ${acc.bg} ${
-                    email === acc.email ? "ring-2 ring-blue-600 border-blue-400" : "border-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-bold text-slate-900 truncate text-[11px]">{acc.title}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${acc.color}`}>
-                      {acc.badge}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate">{acc.email}</div>
-                  <div className="text-[9px] text-slate-400 mt-1 line-clamp-1">{acc.desc}</div>
-                </button>
-              ))}
+            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+              <Building2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="space-y-1 leading-relaxed">
+                <div className="font-semibold text-slate-800">
+                  Kebijakan Akses Terotorisasi (DPD / DPC / PAC)
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Sistem ini diproteksi untuk pengurus dan petugas resmi. Penerbitan akun baru maupun pengaturan ulang kata sandi dikelola secara terpusat oleh{" "}
+                  <span className="font-semibold text-slate-700">Administrator Utama (DPD)</span>.
+                </p>
+              </div>
             </div>
           </div>
         </div>

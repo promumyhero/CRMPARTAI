@@ -58,6 +58,7 @@ export function Navbar({
   const roleConfig = ROLE_CONFIGS[normRole] || ROLE_CONFIGS.viewer;
   const canManageUsers = hasPermission(normRole, "users:manage");
   const canViewBudget = hasPermission(normRole, "budget:view");
+  const canGenerateDocs = hasPermission(normRole, "documents:generate");
   const canManageTemplates = hasPermission(normRole, "templates:manage");
 
   return (
@@ -116,19 +117,21 @@ export function Navbar({
               </button>
             )}
 
-            <button
-              role="tab"
-              aria-selected={activeTab === "documents"}
-              onClick={() => onTabChange("documents")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                activeTab === "documents"
-                  ? "bg-white text-blue-600 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Format Surat</span>
-            </button>
+            {canGenerateDocs && (
+              <button
+                role="tab"
+                aria-selected={activeTab === "documents"}
+                onClick={() => onTabChange("documents")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors duration-150 cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  activeTab === "documents"
+                    ? "bg-white text-blue-600 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Format Surat</span>
+              </button>
+            )}
 
             <button
               role="tab"
@@ -271,19 +274,21 @@ export function Navbar({
             </button>
           )}
 
-          <button
-            role="tab"
-            aria-selected={activeTab === "documents"}
-            onClick={() => onTabChange("documents")}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
-              activeTab === "documents"
-                ? "bg-blue-600 text-white shadow-xs"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Surat</span>
-          </button>
+          {canGenerateDocs && (
+            <button
+              role="tab"
+              aria-selected={activeTab === "documents"}
+              onClick={() => onTabChange("documents")}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-semibold shrink-0 text-xs transition-colors cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                activeTab === "documents"
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Surat</span>
+            </button>
+          )}
 
           <button
             role="tab"

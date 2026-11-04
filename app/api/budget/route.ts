@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 interface CreateBudgetItemPayload {
   activityId?: number | string;
@@ -13,6 +15,11 @@ interface CreateBudgetItemPayload {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "budget:view")) {
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const activityIdStr = searchParams.get("activityId");
     if (!activityIdStr) {
@@ -41,13 +48,21 @@ export async function GET(req: Request) {
       },
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error fetching budget";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("GET /api/budget error:", err);
+    return NextResponse.json({ error: "Gagal mengambil data anggaran." }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "budget:edit")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Anda tidak memiliki izin untuk mengubah rincian anggaran." },
+        { status: 403 }
+      );
+    }
+
     const body = (await req.json()) as CreateBudgetItemPayload;
     if (!body.activityId || !body.itemName || !body.category || !body.unit) {
       return NextResponse.json(
@@ -68,7 +83,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ item }, { status: 201 });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error creating budget item";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("POST /api/budget error:", err);
+    return NextResponse.json({ error: "Gagal menyimpan pos anggaran." }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DataService } from "@/lib/services/data-store";
-import { getCurrentUserOrDefault } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
+import { hasPermission } from "@/lib/auth/roles";
 
 interface CreateDocumentPayload {
   activityId?: number | string;
@@ -14,26 +15,37 @@ interface CreateDocumentPayload {
 
 export async function GET(req: Request) {
   try {
+    const session = await getSessionUser();
+    if (!session) {
+      return NextResponse.json({ error: "Tidak terautentikasi." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const activityIdStr = searchParams.get("activityId");
-    const user = await getCurrentUserOrDefault();
 
     const docs = await DataService.getDocuments({
-      userId: user.id,
+      userId: session.userId,
       activityId: activityIdStr ? parseInt(activityIdStr, 10) : undefined,
     });
 
     return NextResponse.json({ documents: docs });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error fetching documents";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("GET /api/documents error:", err);
+    return NextResponse.json({ error: "Gagal mengambil daftar dokumen." }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
+    const session = await getSessionUser();
+    if (!session || !hasPermission(session.normalizedRole, "documents:generate")) {
+      return NextResponse.json(
+        { error: "Akses ditolak. Anda tidak memiliki izin untuk membuat dokumen resmi." },
+        { status: 403 }
+      );
+    }
+
     const body = (await req.json()) as CreateDocumentPayload;
-    const user = await getCurrentUserOrDefault();
 
     if (!body.docNumber || !body.subject || !body.recipientName) {
       return NextResponse.json(
@@ -43,7 +55,7 @@ export async function POST(req: Request) {
     }
 
     const doc = await DataService.createDocument({
-      userId: user.id,
+      userId: session.userId,
       activityId: body.activityId ? Number(body.activityId) : undefined,
       docNumber: body.docNumber,
       docType: body.docType !== undefined ? Number(body.docType) : 1,
@@ -55,7 +67,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ document: doc }, { status: 201 });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error creating document";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("POST /api/documents error:", err);
+    return NextResponse.json({ error: "Gagal menyimpan dokumen surat." }, { status: 500 });
   }
 }
