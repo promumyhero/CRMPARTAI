@@ -51,42 +51,43 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
     const trimmedKta = ktaNumber.trim();
     const trimmedNik = nik.trim();
 
-    let isMounted = true;
-    const timer = setTimeout(async () => {
-      if (trimmedKta.length < 3 && trimmedNik.length < 16) {
-        if (isMounted) {
-          setDuplicateMatches([]);
-          setAllowOverwrite(false);
-        }
-        return;
-      }
+    if (trimmedKta.length < 3 && trimmedNik.length < 16) {
+      return;
+    }
 
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
       setCheckingDuplicate(true);
       try {
         const params = new URLSearchParams({ checkDuplicate: "1" });
         if (trimmedKta.length >= 3) params.set("ktaNumber", trimmedKta);
         if (trimmedNik.length === 16) params.set("nik", trimmedNik);
 
-        const res = await fetch(`/api/members?${params.toString()}`);
-        if (res.ok && isMounted) {
+        const res = await fetch(`/api/members?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) {
           const data = (await res.json()) as {
             isDuplicate?: boolean;
             duplicates?: DuplicateMemberMatch[];
           };
-          setDuplicateMatches(data.duplicates || []);
-          if (!data.duplicates || data.duplicates.length === 0) {
+          const found = data.duplicates || [];
+          setDuplicateMatches(found);
+          if (found.length === 0) {
             setAllowOverwrite(false);
           }
         }
       } catch {
-        // Ignore transient network errors
+        // Ignore aborted or transient network errors
       } finally {
-        if (isMounted) setCheckingDuplicate(false);
+        if (!controller.signal.aborted) {
+          setCheckingDuplicate(false);
+        }
       }
     }, 300);
 
     return () => {
-      isMounted = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [ktaNumber, nik, isOpen]);
@@ -190,7 +191,27 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
     }
   };
 
-  const hasDuplicate = duplicateMatches.length > 0;
+  const handleKtaChange = (val: string) => {
+    setKtaNumber(val);
+    if (val.trim().length < 3 && nik.trim().length < 16) {
+      setDuplicateMatches([]);
+      setAllowOverwrite(false);
+      setCheckingDuplicate(false);
+    }
+  };
+
+  const handleNikChange = (rawVal: string) => {
+    const cleaned = rawVal.replace(/\D/g, "");
+    setNik(cleaned);
+    if (ktaNumber.trim().length < 3 && cleaned.trim().length < 16) {
+      setDuplicateMatches([]);
+      setAllowOverwrite(false);
+      setCheckingDuplicate(false);
+    }
+  };
+
+  const hasDuplicate =
+    (ktaNumber.trim().length >= 3 || nik.trim().length === 16) && duplicateMatches.length > 0;
 
   return (
     <Modal
@@ -272,7 +293,7 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
                 type="text"
                 required
                 value={ktaNumber}
-                onChange={(e) => setKtaNumber(e.target.value)}
+                onChange={(e) => handleKtaChange(e.target.value)}
                 placeholder="cth. 61710120260001"
                 className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 font-mono focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
@@ -301,7 +322,7 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
               inputMode="numeric"
               maxLength={16}
               value={nik}
-              onChange={(e) => setNik(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => handleNikChange(e.target.value)}
               placeholder="16 digit NIK"
               className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 font-mono focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
             />
@@ -344,8 +365,8 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
           </div>
         </div>
 
-        {/* Row 3: Jabatan, No. WA, Tanggal Lahir */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Row 3: Jabatan, No. WA, Tempat & Tanggal Lahir */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div>
             <label htmlFor="member-pos" className="block text-xs font-semibold text-slate-700 mb-1">
               Jabatan Struktural
@@ -370,7 +391,7 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
 
           <div>
             <label htmlFor="member-phone" className="block text-xs font-semibold text-slate-700 mb-1">
-              No. Telepon / WhatsApp
+              No. Telepon / WA
             </label>
             <div className="relative">
               <Phone className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" aria-hidden="true" />
@@ -383,6 +404,20 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
                 className="w-full pl-8 pr-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="member-pob" className="block text-xs font-semibold text-slate-700 mb-1">
+              Tempat Lahir
+            </label>
+            <input
+              id="member-pob"
+              type="text"
+              value={birthPlace}
+              onChange={(e) => setBirthPlace(e.target.value)}
+              placeholder="cth. Pontianak"
+              className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-slate-300 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
+            />
           </div>
 
           <div>
@@ -496,6 +531,20 @@ export function MemberCreateModal({ isOpen, onClose, onSuccess }: MemberCreateMo
                 />
               )}
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="member-address" className="block text-[11px] font-medium text-slate-600 mb-1">
+              Alamat Lengkap Domisili (RT/RW/Jalan)
+            </label>
+            <input
+              id="member-address"
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="cth. Jl. Ahmad Yani No. 12 RT 002 / RW 004"
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
+            />
           </div>
         </div>
 
