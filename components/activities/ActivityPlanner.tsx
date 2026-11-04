@@ -135,26 +135,17 @@ export function ActivityPlanner({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
 
-  // Calendar Navigation State
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(9);
-  const [selectedDateStr, setSelectedDateStr] = useState<string>("2026-10-27");
-  const [todayDateStr, setTodayDateStr] = useState<string>("2026-10-27");
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = now.getMonth();
-      const d = now.getDate();
-      const str = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      setCurrentYear(y);
-      setCurrentMonth(m);
-      setSelectedDateStr(str);
-      setTodayDateStr(str);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+  // Calendar Navigation State (lazy-initialized to avoid cascading mount effect)
+  const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth());
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
+  const [todayDateStr] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -386,6 +377,26 @@ export function ActivityPlanner({
     );
   };
 
+  // Pre-index activities by YYYY-MM-DD in O(N) once instead of O(42 * N) per calendar render
+  const activitiesByDateMap = useMemo(() => {
+    const map = new Map<string, ActivityItem[]>();
+    for (const act of activities) {
+      if (!act.startDate) continue;
+      const d = new Date(act.startDate);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
+      const bucket = map.get(key);
+      if (bucket) {
+        bucket.push(act);
+      } else {
+        map.set(key, [act]);
+      }
+    }
+    return map;
+  }, [activities]);
+
   // Calendar Day Grid Computation
   const calendarDays = useMemo(() => {
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -409,22 +420,12 @@ export function ActivityPlanner({
       const prevY = currentMonth === 0 ? currentYear - 1 : currentYear;
       const dateStr = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-      const matched = activities.filter((act) => {
-        if (!act.startDate) return false;
-        const d = new Date(act.startDate);
-        return (
-          d.getFullYear() === prevY &&
-          d.getMonth() === prevM &&
-          d.getDate() === day
-        );
-      });
-
       cells.push({
         dateStr,
         dayNum: day,
         isCurrentMonth: false,
         isToday: dateStr === todayStr,
-        activities: matched,
+        activities: activitiesByDateMap.get(dateStr) || [],
       });
     }
 
@@ -434,22 +435,12 @@ export function ActivityPlanner({
         day
       ).padStart(2, "0")}`;
 
-      const matched = activities.filter((act) => {
-        if (!act.startDate) return false;
-        const d = new Date(act.startDate);
-        return (
-          d.getFullYear() === currentYear &&
-          d.getMonth() === currentMonth &&
-          d.getDate() === day
-        );
-      });
-
       cells.push({
         dateStr,
         dayNum: day,
         isCurrentMonth: true,
         isToday: dateStr === todayStr,
-        activities: matched,
+        activities: activitiesByDateMap.get(dateStr) || [],
       });
     }
 
@@ -460,40 +451,23 @@ export function ActivityPlanner({
       const nextY = currentMonth === 11 ? currentYear + 1 : currentYear;
       const dateStr = `${nextY}-${String(nextM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-      const matched = activities.filter((act) => {
-        if (!act.startDate) return false;
-        const d = new Date(act.startDate);
-        return (
-          d.getFullYear() === nextY &&
-          d.getMonth() === nextM &&
-          d.getDate() === day
-        );
-      });
-
       cells.push({
         dateStr,
         dayNum: day,
         isCurrentMonth: false,
         isToday: dateStr === todayStr,
-        activities: matched,
+        activities: activitiesByDateMap.get(dateStr) || [],
       });
     }
 
     return cells;
-  }, [currentYear, currentMonth, activities, todayDateStr]);
+  }, [currentYear, currentMonth, activitiesByDateMap, todayDateStr]);
 
   // Selected Date Activities
   const selectedDateActivities = useMemo(() => {
     if (!selectedDateStr) return [];
-    return activities.filter((act) => {
-      if (!act.startDate) return false;
-      const d = new Date(act.startDate);
-      const str = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-        d.getDate()
-      ).padStart(2, "0")}`;
-      return str === selectedDateStr;
-    });
-  }, [selectedDateStr, activities]);
+    return activitiesByDateMap.get(selectedDateStr) || [];
+  }, [selectedDateStr, activitiesByDateMap]);
 
   // Selected date human readable label
   const selectedDateFormatted = useMemo(() => {

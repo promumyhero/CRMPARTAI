@@ -72,9 +72,9 @@ interface RoleDetailedGuide {
 const ROLE_GUIDES: RoleDetailedGuide[] = [
   {
     role: "superadmin",
-    title: "Super Admin (DPD)",
-    badge: "Otoritas Tertinggi",
-    level: "Dewan Pimpinan Daerah (DPD) / Provinsi",
+    title: "Administrator Utama (DPD Provinsi Kalbar)",
+    badge: "Otoritas Tertinggi Provinsi",
+    level: "Dewan Pimpinan Daerah (DPD) / Provinsi Kalimantan Barat",
     icon: Award,
     colorScheme: {
       bg: "bg-purple-50/60",
@@ -87,9 +87,9 @@ const ROLE_GUIDES: RoleDetailedGuide[] = [
       iconColor: "text-white",
     },
     summary:
-      "Pemegang kekuasaan administratif penuh atas seluruh modul CRM di seluruh wilayah Kalimantan Barat. Bertanggung jawab atas tata kelola sistem, integritas data, dan manajemen staf pengguna.",
-    recommendedFor: "Ketua DPD, Sekretaris Wilayah, Kepala Biro TI & Data Center Partai.",
-    territorialScope: "Seluruh Provinsi Kalimantan Barat (Semua Kota & Kabupaten).",
+      "Pemegang kekuasaan dan akses penuh tanpa batas atas seluruh modul CRM di seluruh wilayah Provinsi Kalimantan Barat (14 Kota & Kabupaten). Bertanggung jawab atas tata kelola sistem tingkat provinsi, integritas database, dan manajemen staf pengguna.",
+    recommendedFor: "Administrator Utama, Ketua DPD Kalbar, Sekretaris Wilayah Provinsi, Kepala Biro TI & Data Center.",
+    territorialScope: "Seluruh Wilayah Provinsi Kalimantan Barat (14 Kota & Kabupaten).",
     canDo: [
       "Mengelola seluruh akun pengguna sistem (buat, edit role, nonaktifkan, reset password)",
       "Melihat data sensitif kader (NIK lengkap 16 digit tanpa sensor & kontak)",
@@ -400,15 +400,16 @@ export function UserManager() {
   };
 
   const handleOpenEdit = (user: ManagedUser) => {
+    const norm = normalizeRole(user.role);
     setSelectedUser(user);
     setFormName(user.name);
     setFormEmail(user.email);
     setFormPassword("");
-    setFormRole(normalizeRole(user.role));
+    setFormRole(norm);
     setFormPhone(user.phone || "");
     setFormStatus(user.status || "active");
-    setFormCity(user.city || "KOTA PONTIANAK");
-    setFormDistrict(user.district || "");
+    setFormCity(norm === "superadmin" ? "" : user.city || "KOTA PONTIANAK");
+    setFormDistrict(norm === "superadmin" ? "" : user.district || "");
     setIsEditModalOpen(true);
   };
 
@@ -421,6 +422,7 @@ export function UserManager() {
     e.preventDefault();
     setFormSubmitting(true);
     try {
+      const isSuperAdmin = formRole === "superadmin";
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -432,8 +434,8 @@ export function UserManager() {
           phone: formPhone || null,
           status: formStatus,
           province: "KALIMANTAN BARAT",
-          city: formCity || null,
-          district: formDistrict || null,
+          city: isSuperAdmin ? null : formCity || null,
+          district: isSuperAdmin ? null : formDistrict || null,
         }),
       });
 
@@ -460,6 +462,7 @@ export function UserManager() {
     setFormSubmitting(true);
 
     try {
+      const isSuperAdmin = formRole === "superadmin";
       const body: Record<string, unknown> = {
         name: formName,
         email: formEmail,
@@ -467,8 +470,8 @@ export function UserManager() {
         phone: formPhone || null,
         status: formStatus,
         province: "KALIMANTAN BARAT",
-        city: formCity || null,
-        district: formDistrict || null,
+        city: isSuperAdmin ? null : formCity || null,
+        district: isSuperAdmin ? null : formDistrict || null,
       };
 
       if (formPassword.trim()) {
@@ -967,15 +970,23 @@ export function UserManager() {
 
                       <td className="px-4 py-3.5 text-xs text-slate-600">
                         <div className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="font-medium text-slate-800">
-                            {u.city || u.province || "Seluruh Kalbar"}
+                          <MapPin className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span className="font-semibold text-slate-800">
+                            {norm === "superadmin"
+                              ? "Provinsi Kalimantan Barat (Seluruh Wilayah)"
+                              : u.city || u.province || "Kalimantan Barat"}
                           </span>
                         </div>
-                        {u.district && (
-                          <div className="text-[11px] text-slate-500 pl-4.5">
-                            Kec. {u.district}
+                        {norm === "superadmin" ? (
+                          <div className="text-[11px] text-purple-700 font-medium pl-4.5">
+                            Akses Penuh 14 Kota & Kabupaten
                           </div>
+                        ) : (
+                          u.district && (
+                            <div className="text-[11px] text-slate-500 pl-4.5">
+                              Kec. {u.district}
+                            </div>
+                          )
                         )}
                       </td>
 
@@ -1145,47 +1156,60 @@ export function UserManager() {
 
           {/* Territorial configuration */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
-            <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-              <span>Wilayah Cakupan Tugas</span>
+            <div className="text-xs font-semibold text-slate-800 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                <span>Wilayah Cakupan Tugas (Provinsi Kalimantan Barat)</span>
+              </span>
+              {formRole === "superadmin" && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                  Akses Penuh Provinsi
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  Kota / Kabupaten
-                </label>
-                <select
-                  value={formCity}
-                  onChange={(e) => setFormCity(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
-                >
-                  <option value="KOTA PONTIANAK">KOTA PONTIANAK</option>
-                  {WEST_KALIMANTAN_CITIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {formRole === "superadmin" ? (
+              <p className="text-xs text-purple-800 bg-purple-50/80 border border-purple-200/80 rounded-lg p-2.5 leading-relaxed">
+                <b>Administrator Utama (DPD Provinsi Kalimantan Barat)</b> memegang otoritas penuh untuk mengelola seluruh <b>14 Kota & Kabupaten</b> di wilayah Provinsi Kalimantan Barat tanpa batasan cabang/kecamatan.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Kota / Kabupaten (Kalimantan Barat)
+                  </label>
+                  <select
+                    value={formCity}
+                    onChange={(e) => setFormCity(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="">Seluruh Kalimantan Barat (Lintas Kota/Kab)</option>
+                    {WEST_KALIMANTAN_CITIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  Kecamatan (Untuk Admin PAC)
-                </label>
-                <select
-                  value={formDistrict}
-                  onChange={(e) => setFormDistrict(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
-                >
-                  <option value="">Semua Kecamatan (DPC/DPD)</option>
-                  {PONTIANAK_DISTRICTS.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Kecamatan (Untuk Admin PAC)
+                  </label>
+                  <select
+                    value={formDistrict}
+                    onChange={(e) => setFormDistrict(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="">Semua Kecamatan (DPC/DPD)</option>
+                    {PONTIANAK_DISTRICTS.map((d) => (
+                      <option key={d.name} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-2">
@@ -1308,47 +1332,60 @@ export function UserManager() {
 
           {/* Territorial configuration */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
-            <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-              <span>Wilayah Cakupan Tugas</span>
+            <div className="text-xs font-semibold text-slate-800 flex items-center justify-between gap-1.5">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                <span>Wilayah Cakupan Tugas (Provinsi Kalimantan Barat)</span>
+              </span>
+              {formRole === "superadmin" && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                  Akses Penuh Provinsi
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  Kota / Kabupaten
-                </label>
-                <select
-                  value={formCity}
-                  onChange={(e) => setFormCity(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
-                >
-                  <option value="KOTA PONTIANAK">KOTA PONTIANAK</option>
-                  {WEST_KALIMANTAN_CITIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {formRole === "superadmin" ? (
+              <p className="text-xs text-purple-800 bg-purple-50/80 border border-purple-200/80 rounded-lg p-2.5 leading-relaxed">
+                <b>Administrator Utama (DPD Provinsi Kalimantan Barat)</b> memegang otoritas penuh untuk mengelola seluruh <b>14 Kota & Kabupaten</b> di wilayah Provinsi Kalimantan Barat tanpa batasan cabang/kecamatan.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Kota / Kabupaten (Kalimantan Barat)
+                  </label>
+                  <select
+                    value={formCity}
+                    onChange={(e) => setFormCity(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="">Seluruh Kalimantan Barat (Lintas Kota/Kab)</option>
+                    {WEST_KALIMANTAN_CITIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  Kecamatan (Untuk Admin PAC)
-                </label>
-                <select
-                  value={formDistrict}
-                  onChange={(e) => setFormDistrict(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
-                >
-                  <option value="">Semua Kecamatan (DPC/DPD)</option>
-                  {PONTIANAK_DISTRICTS.map((d) => (
-                    <option key={d.name} value={d.name}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Kecamatan (Untuk Admin PAC)
+                  </label>
+                  <select
+                    value={formDistrict}
+                    onChange={(e) => setFormDistrict(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-slate-300 bg-white"
+                  >
+                    <option value="">Semua Kecamatan (DPC/DPD)</option>
+                    {PONTIANAK_DISTRICTS.map((d) => (
+                      <option key={d.name} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-2 flex items-center justify-end gap-2">

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { Upload, AlertTriangle, CheckCircle2, XCircle, FileSpreadsheet, X, Loader2 } from "lucide-react";
+import { Upload, AlertTriangle, CheckCircle2, XCircle, FileSpreadsheet, X, Loader2, ShieldAlert } from "lucide-react";
 import { parseMemberExcelBuffer, type ParseExcelResult } from "@/lib/excel/member-parser";
+import type { DuplicateMemberMatch } from "@/lib/services/data-store";
 
 interface MemberImportModalProps {
   isOpen: boolean;
@@ -14,23 +15,74 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
   const [file, setFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseResult, setParseResult] = useState<ParseExcelResult | null>(null);
+  const [dbDuplicates, setDbDuplicates] = useState<DuplicateMemberMatch[]>([]);
+  const [duplicateStrategy, setDuplicateStrategy] = useState<"skip" | "update">("skip");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
+  const analyzeFileBuffer = async (selectedFile: File) => {
     setFile(selectedFile);
     setErrorMsg(null);
     setIsParsing(true);
+    setDbDuplicates([]);
 
     try {
       const buffer = await selectedFile.arrayBuffer();
       const result = parseMemberExcelBuffer(buffer);
+
+      // Check existing duplicates in database before user confirms import
+      const candidates = result.rows
+        .filter((r) => r.status !== "error")
+        .map((r) => ({ ktaNumber: r.data.ktaNumber, nik: r.data.nik }));
+
+      if (candidates.length > 0) {
+        try {
+          const dupRes = await fetch("/api/members", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "check_duplicates", candidates }),
+          });
+          if (dupRes.ok) {
+            const dupData = (await dupRes.json()) as {
+              duplicates?: DuplicateMemberMatch[];
+              byKta?: Record<string, DuplicateMemberMatch>;
+              byNik?: Record<string, DuplicateMemberMatch>;
+            };
+            const matchedList = dupData.duplicates || [];
+            setDbDuplicates(matchedList);
+
+            if (matchedList.length > 0) {
+              const byKta = dupData.byKta || {};
+              const byNik = dupData.byNik || {};
+              let extraWarnings = 0;
+
+              result.rows.forEach((row) => {
+                if (row.status === "error") return;
+                const match =
+                  byKta[row.data.ktaNumber] ||
+                  (row.data.nik ? byNik[row.data.nik] : undefined);
+                if (match) {
+                  if (row.status === "valid") {
+                    row.status = "warning";
+                    result.validCount = Math.max(0, result.validCount - 1);
+                    extraWarnings++;
+                  }
+                  row.issues.unshift(
+                    `Terdeteksi Duplikat di Database (${match.matchedBy === "nik" ? "NIK sama" : "No. KTA sama"} a.n. ${match.name})`
+                  );
+                }
+              });
+              result.warningCount += extraWarnings;
+            }
+          }
+        } catch {
+          // Ignore network error during pre-flight duplicate check; server will still protect on submit
+        }
+      }
+
       setParseResult(result);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal membaca file Excel/CSV";
@@ -41,26 +93,17 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+    await analyzeFileBuffer(selectedFile);
+  };
+
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files?.[0];
     if (!droppedFile) return;
-
-    setFile(droppedFile);
-    setErrorMsg(null);
-    setIsParsing(true);
-
-    try {
-      const buffer = await droppedFile.arrayBuffer();
-      const result = parseMemberExcelBuffer(buffer);
-      setParseResult(result);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal membaca file Excel/CSV";
-      setErrorMsg("Error parsing file: " + msg);
-      setParseResult(null);
-    } finally {
-      setIsParsing(false);
-    }
+    await analyzeFileBuffer(droppedFile);
   };
 
   const handleConfirmImport = async () => {
@@ -83,7 +126,10 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
       const res = await fetch("/api/members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch: validRows }),
+        body: JSON.stringify({
+          batch: validRows,
+          duplicateStrategy,
+        }),
       });
 
       const json = await res.json();
@@ -281,14 +327,86 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
                 </div>
               </div>
 
+              {/* Database Duplicate Warning & Strategy Selector */}
+              {dbDuplicates.length > 0 && (
+                <div
+                  role="alert"
+                  className="p-4 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 space-y-2.5"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div>
+                      <p className="font-bold text-amber-900">
+                        Peringatan Duplikat Database: {dbDuplicates.length} Anggota Sudah Terdaftar!
+                      </p>
+                      <p className="text-amber-800 mt-0.5 leading-relaxed">
+                        Sistem mendeteksi <b>{dbDuplicates.length} baris</b> memiliki No. KTA atau NIK (16 digit) yang sudah ada di dalam database. Pilih tindakan penanganan agar data tidak terduplikat:
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <label
+                      className={`p-2.5 rounded-lg border cursor-pointer flex items-start gap-2 transition ${
+                        duplicateStrategy === "skip"
+                          ? "bg-white border-amber-500 ring-2 ring-amber-500/20 font-semibold"
+                          : "bg-amber-50/50 border-amber-200 hover:bg-white/60"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="duplicateStrategy"
+                        value="skip"
+                        checked={duplicateStrategy === "skip"}
+                        onChange={() => setDuplicateStrategy("skip")}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="text-slate-900 font-bold">
+                          Lewati Data Duplikat (Direkomendasikan)
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-normal">
+                          Hanya menambahkan kader baru dan mengabaikan {dbDuplicates.length} data yang sudah ada di database.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`p-2.5 rounded-lg border cursor-pointer flex items-start gap-2 transition ${
+                        duplicateStrategy === "update"
+                          ? "bg-white border-blue-500 ring-2 ring-blue-500/20 font-semibold"
+                          : "bg-amber-50/50 border-amber-200 hover:bg-white/60"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="duplicateStrategy"
+                        value="update"
+                        checked={duplicateStrategy === "update"}
+                        onChange={() => setDuplicateStrategy("update")}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <div className="text-slate-900 font-bold">
+                          Perbarui Data Lama (Upsert)
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-normal">
+                          Timpa & perbarui profil {dbDuplicates.length} anggota yang sudah ada tanpa membuat baris ganda.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Data Safety Notice */}
               <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-xl text-xs space-y-1">
                 <p className="font-semibold flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                  Keamanan & Perlindungan Privasi Data:
+                  Proteksi Anti-Duplikat & Keamanan Database:
                 </p>
                 <p className="text-slate-600">
-                  Data diproses langsung ke database terenkripsi Anda. Sistem akan otomatis melakukan *upsert*: jika No. KTA sudah ada, data lama akan diperbarui tanpa membuat baris ganda.
+                  Pemeriksaan otomatis dilakukan berdasarkan <b>No. KTA</b> dan <b>NIK (16 Digit)</b> untuk mencegah duplikasi data anggota partai di database.
                 </p>
               </div>
             </div>

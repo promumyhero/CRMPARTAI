@@ -16,7 +16,7 @@ export type AppRole =
 export interface RoleConfig {
   id: AppRole;
   label: string;
-  level: "Pusat / DPD" | "Kabupaten / DPC" | "Kecamatan / PAC" | "Sekretariat" | "Umum";
+  level: "Provinsi Kalimantan Barat (DPD)" | "Pusat / DPD" | "Kabupaten / DPC" | "Kecamatan / PAC" | "Sekretariat" | "Umum";
   badgeColor: string;
   badgeBg: string;
   description: string;
@@ -25,19 +25,19 @@ export interface RoleConfig {
 export const ROLE_CONFIGS: Record<string, RoleConfig> = {
   superadmin: {
     id: "superadmin",
-    label: "Super Admin (DPD)",
-    level: "Pusat / DPD",
+    label: "Administrator Utama (DPD Kalbar)",
+    level: "Provinsi Kalimantan Barat (DPD)",
     badgeColor: "text-purple-700 border-purple-200",
     badgeBg: "bg-purple-50",
-    description: "Akses penuh seluruh modul, kelola user, konfigurasi template & sinkronisasi database.",
+    description: "Kekuasaan & akses penuh seluruh modul, kelola pengguna, template & seluruh 14 Kota/Kabupaten di Provinsi Kalimantan Barat.",
   },
   admin: {
     id: "superadmin",
-    label: "Super Admin (DPD)",
-    level: "Pusat / DPD",
+    label: "Administrator Utama (DPD Kalbar)",
+    level: "Provinsi Kalimantan Barat (DPD)",
     badgeColor: "text-purple-700 border-purple-200",
     badgeBg: "bg-purple-50",
-    description: "Akses penuh seluruh modul, kelola user, konfigurasi template & sinkronisasi database.",
+    description: "Kekuasaan & akses penuh seluruh modul, kelola pengguna, template & seluruh 14 Kota/Kabupaten di Provinsi Kalimantan Barat.",
   },
   admin_dpc: {
     id: "admin_dpc",

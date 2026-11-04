@@ -214,11 +214,19 @@ export function Navbar({
                     >
                       {roleConfig.label.split(" (")[0]}
                     </span>
-                    {currentUser.district && (
+                    {normRole === "superadmin" ? (
+                      <span className="text-[9px] text-purple-600 font-semibold truncate">
+                        • Prov. Kalimantan Barat
+                      </span>
+                    ) : currentUser.district ? (
                       <span className="text-[9px] text-slate-400 truncate">
                         • Kec. {currentUser.district}
                       </span>
-                    )}
+                    ) : currentUser.city ? (
+                      <span className="text-[9px] text-slate-400 truncate">
+                        • {currentUser.city}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 <button

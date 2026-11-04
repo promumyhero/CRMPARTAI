@@ -5,8 +5,12 @@ import { COOKIE_NAME, SECURE_COOKIE_OPTIONS } from "@/lib/auth/session";
 import { checkLoginRateLimit, recordFailedLogin, resetLoginRateLimit } from "@/lib/auth/rate-limit";
 import { LoginInputSchema } from "@/lib/auth/validation";
 import { normalizeRole } from "@/lib/auth/roles";
+import { getOrCreateRequestId, logger, recordRouteMetric } from "@/lib/observability/logger";
 
 export async function POST(req: Request) {
+  const startMs = performance.now();
+  const requestId = getOrCreateRequestId(req);
+
   try {
     // 1. Dapatkan IP address untuk rate limiting
     const forwardedFor = req.headers.get("x-forwarded-for");
@@ -107,6 +111,21 @@ export async function POST(req: Request) {
     // 9. Catat waktu login terakhir
     await DataService.recordLogin(user.id);
 
+    const normRole = normalizeRole(user.role);
+    const durationMs = performance.now() - startMs;
+    recordRouteMetric("/api/auth/login", 200, durationMs);
+    logger.info(
+      {
+        event: "auth_login_succeeded",
+        entryPoint: "api_auth",
+        requestId,
+        userId: user.id,
+        role: normRole,
+        durationMs: Math.round(durationMs),
+      },
+      "User authenticated successfully"
+    );
+
     // 10. Buat JWT Token aman
     const maxAgeSeconds = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7; // 30 hari vs 7 hari
     const token = await createSessionToken(
@@ -140,7 +159,10 @@ export async function POST(req: Request) {
         },
       },
       {
-        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "X-Request-Id": requestId,
+        },
       }
     );
 
@@ -153,10 +175,21 @@ export async function POST(req: Request) {
 
     return response;
   } catch (err: unknown) {
-    console.error("Login exception:", err);
+    const durationMs = performance.now() - startMs;
+    recordRouteMetric("/api/auth/login", 500, durationMs);
+    logger.error(
+      {
+        event: "auth_login_exception",
+        entryPoint: "api_auth",
+        requestId,
+        durationMs: Math.round(durationMs),
+        error: err instanceof Error ? err.message : "unknown_error",
+      },
+      "Login endpoint exception"
+    );
     return NextResponse.json(
       { error: "Terjadi kesalahan internal pada server autentikasi." },
-      { status: 500 }
+      { status: 500, headers: { "X-Request-Id": requestId } }
     );
   }
 }

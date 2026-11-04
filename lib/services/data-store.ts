@@ -17,7 +17,7 @@ import {
   type PartyMember,
   type NewPartyMember,
 } from "@/lib/db/schema";
-import { eq, desc, and, isNull, or, ilike, not } from "drizzle-orm";
+import { eq, desc, and, isNull, or, ilike, not, inArray } from "drizzle-orm";
 import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Local storage path: In Vercel serverless functions, /var/task is read-only, so use /tmp/.data
@@ -175,7 +175,7 @@ function getInitialState(): LocalStoreState {
         phone: "0812-5555-001",
         status: "active",
         province: "KALIMANTAN BARAT",
-        city: "KOTA PONTIANAK",
+        city: null,
         district: null,
         lastLoginAt: null,
         createdAt: now,
@@ -622,6 +622,45 @@ function saveLocalStore(state: LocalStoreState) {
 }
 
 let isPgHealthy: boolean | null = null;
+
+export interface DuplicateMemberMatch {
+  id: number;
+  ktaNumber: string;
+  nik: string | null;
+  name: string;
+  city: string | null;
+  district: string | null;
+  subdistrict: string | null;
+  position: string;
+  matchedBy: "ktaNumber" | "nik" | "both";
+}
+
+interface MemberStatsPayload {
+  totalMembers: number;
+  totalMale: number;
+  totalFemale: number;
+  femalePercentage: number;
+  totalOfficials: number;
+  totalRegular: number;
+  totalVerified: number;
+  districts: Record<string, number>;
+  subdistricts: Record<string, number>;
+  cities: Record<string, number>;
+  provinces: Record<string, number>;
+  existingTerritories: Array<{
+    province?: string | null;
+    city?: string | null;
+    district?: string | null;
+    subdistrict?: string | null;
+  }>;
+}
+
+const STATS_CACHE_TTL_MS = 60_000; // 60 seconds in-memory cache
+let memberStatsCache: { data: MemberStatsPayload; expiresAt: number } | null = null;
+
+export function invalidateMemberStatsCache(): void {
+  memberStatsCache = null;
+}
 
 async function checkPg(): Promise<boolean> {
   if (isPgHealthy !== null) return isPgHealthy;
@@ -2477,31 +2516,40 @@ export const DataService = {
     return { members: paginated, total };
   },
 
-  async getPartyMemberStats(): Promise<{
-    totalMembers: number;
-    totalMale: number;
-    totalFemale: number;
-    femalePercentage: number;
-    totalOfficials: number;
-    totalRegular: number;
-    totalVerified: number;
-    districts: Record<string, number>;
-    subdistricts: Record<string, number>;
-    cities: Record<string, number>;
-    provinces: Record<string, number>;
-    existingTerritories: Array<{
-      province?: string | null;
-      city?: string | null;
-      district?: string | null;
-      subdistrict?: string | null;
-    }>;
-  }> {
+  async getPartyMemberStats(forceRefresh: boolean = false): Promise<MemberStatsPayload> {
+    if (!forceRefresh && memberStatsCache && memberStatsCache.expiresAt > Date.now()) {
+      return memberStatsCache.data;
+    }
+
     const isPg = await checkPg();
-    let allMembers: PartyMember[] = [];
+    let allMembers: Array<
+      Pick<
+        PartyMember,
+        | "gender"
+        | "position"
+        | "orgVerificationStatus"
+        | "dppValidationStatus"
+        | "province"
+        | "city"
+        | "district"
+        | "subdistrict"
+      >
+    > = [];
 
     if (isPg && db) {
       try {
-        allMembers = await db.select().from(partyMembers);
+        allMembers = await db
+          .select({
+            gender: partyMembers.gender,
+            position: partyMembers.position,
+            orgVerificationStatus: partyMembers.orgVerificationStatus,
+            dppValidationStatus: partyMembers.dppValidationStatus,
+            province: partyMembers.province,
+            city: partyMembers.city,
+            district: partyMembers.district,
+            subdistrict: partyMembers.subdistrict,
+          })
+          .from(partyMembers);
       } catch (err) {
         console.warn("Postgres select stats failed, using Supabase/local store:", err);
       }
@@ -2511,37 +2559,22 @@ export const DataService = {
       const sb = getSupabaseAdmin();
       if (sb) {
         try {
-          const { data, error } = await sb.from("party_members").select("*").limit(3000);
+          const { data, error } = await sb
+            .from("party_members")
+            .select(
+              "gender, position, org_verification_status, dpp_validation_status, province, city, district, subdistrict"
+            )
+            .limit(5000);
           if (!error && data && data.length > 0) {
             allMembers = data.map((m) => ({
-              id: m.id,
-              sourceId: m.source_id,
-              ktaNumber: m.kta_number,
-              name: m.name,
-              nik: m.nik,
               gender: m.gender,
-              birthPlace: m.birth_place,
-              birthDate: m.birth_date,
-              maritalStatus: m.marital_status,
-              nationality: m.nationality,
-              job: m.job,
-              email: m.email,
-              isEmailVerified: m.is_email_verified,
-              phone: m.phone,
+              position: m.position,
+              orgVerificationStatus: m.org_verification_status,
+              dppValidationStatus: m.dpp_validation_status,
               province: m.province,
               city: m.city,
               district: m.district,
               subdistrict: m.subdistrict,
-              address: m.address,
-              postalCode: m.postal_code,
-              position: m.position,
-              membershipStatus: m.membership_status,
-              orgVerificationStatus: m.org_verification_status,
-              dppValidationStatus: m.dpp_validation_status,
-              dppDecisionDate: m.dpp_decision_date ? new Date(m.dpp_decision_date) : null,
-              kpuStatusChangeDate: m.kpu_status_change_date ? new Date(m.kpu_status_change_date) : null,
-              createdAt: new Date(m.created_at),
-              updatedAt: new Date(m.updated_at),
             }));
           }
         } catch {
@@ -2576,6 +2609,7 @@ export const DataService = {
     const cities: Record<string, number> = {};
     const provinces: Record<string, number> = {};
 
+    const seenTerritoryKeys = new Set<string>();
     const existingTerritories: Array<{
       province?: string | null;
       city?: string | null;
@@ -2594,15 +2628,19 @@ export const DataService = {
       districts[dist] = (districts[dist] || 0) + 1;
       subdistricts[sub] = (subdistricts[sub] || 0) + 1;
 
-      existingTerritories.push({
-        province: m.province,
-        city: m.city,
-        district: m.district,
-        subdistrict: m.subdistrict,
-      });
+      const tKey = `${m.province || ""}|${m.city || ""}|${m.district || ""}|${m.subdistrict || ""}`;
+      if (!seenTerritoryKeys.has(tKey)) {
+        seenTerritoryKeys.add(tKey);
+        existingTerritories.push({
+          province: m.province,
+          city: m.city,
+          district: m.district,
+          subdistrict: m.subdistrict,
+        });
+      }
     }
 
-    return {
+    const result: MemberStatsPayload = {
       totalMembers,
       totalMale,
       totalFemale,
@@ -2616,76 +2654,328 @@ export const DataService = {
       provinces,
       existingTerritories,
     };
+
+    memberStatsCache = {
+      data: result,
+      expiresAt: Date.now() + STATS_CACHE_TTL_MS,
+    };
+
+    return result;
   },
 
-  async batchUpsertPartyMembers(
-    items: NewPartyMember[]
-  ): Promise<{ inserted: number; updated: number; total: number }> {
+  /**
+   * Memeriksa apakah No. KTA atau NIK (16 digit) sudah terdaftar di database
+   * Menggunakan query terindeks secara batch (Anti N+1 Query)
+   */
+  async checkDuplicatePartyMembers(
+    candidates: Array<{ ktaNumber?: string | null; nik?: string | null }>
+  ): Promise<{
+    duplicates: DuplicateMemberMatch[];
+    byKta: Record<string, DuplicateMemberMatch>;
+    byNik: Record<string, DuplicateMemberMatch>;
+  }> {
+    const ktaSet = new Set<string>();
+    const nikSet = new Set<string>();
+
+    for (const c of candidates) {
+      const kta = c.ktaNumber?.trim();
+      const nik = c.nik?.trim();
+      if (kta) ktaSet.add(kta);
+      if (nik && nik.length >= 10) nikSet.add(nik);
+    }
+
+    const ktaList = Array.from(ktaSet);
+    const nikList = Array.from(nikSet);
+
+    if (ktaList.length === 0 && nikList.length === 0) {
+      return { duplicates: [], byKta: {}, byNik: {} };
+    }
+
+    type LightMemberRow = {
+      id: number;
+      ktaNumber: string;
+      nik: string | null;
+      name: string;
+      city: string | null;
+      district: string | null;
+      subdistrict: string | null;
+      position: string;
+    };
+
+    let matchedRows: LightMemberRow[] = [];
     const isPg = await checkPg();
-    let inserted = 0;
-    let updated = 0;
 
     if (isPg && db) {
       try {
-        for (const item of items) {
-          const existing = await db
-            .select()
+        const conds = [];
+        if (ktaList.length > 0) conds.push(inArray(partyMembers.ktaNumber, ktaList.slice(0, 500)));
+        if (nikList.length > 0) conds.push(inArray(partyMembers.nik, nikList.slice(0, 500)));
+        if (conds.length > 0) {
+          const rows = await db
+            .select({
+              id: partyMembers.id,
+              ktaNumber: partyMembers.ktaNumber,
+              nik: partyMembers.nik,
+              name: partyMembers.name,
+              city: partyMembers.city,
+              district: partyMembers.district,
+              subdistrict: partyMembers.subdistrict,
+              position: partyMembers.position,
+            })
             .from(partyMembers)
-            .where(eq(partyMembers.ktaNumber, item.ktaNumber))
-            .limit(1);
+            .where(or(...conds));
+          matchedRows = rows;
+        }
+      } catch (err) {
+        console.warn("Postgres duplicate check failed, falling back to Supabase/local:", err);
+      }
+    }
 
-          if (existing.length > 0) {
-            await db
-              .update(partyMembers)
-              .set({ ...item, updatedAt: new Date() })
-              .where(eq(partyMembers.id, existing[0].id));
-            updated++;
-          } else {
-            await db.insert(partyMembers).values(item);
-            inserted++;
+    if (matchedRows.length === 0) {
+      const sb = getSupabaseAdmin();
+      if (sb) {
+        try {
+          const foundMap = new Map<number, LightMemberRow>();
+          const CHUNK_SIZE = 200;
+
+          for (let i = 0; i < ktaList.length; i += CHUNK_SIZE) {
+            const chunk = ktaList.slice(i, i + CHUNK_SIZE);
+            const { data } = await sb
+              .from("party_members")
+              .select("id, kta_number, nik, name, city, district, subdistrict, position")
+              .in("kta_number", chunk);
+            if (data) {
+              for (const r of data) {
+                foundMap.set(r.id, {
+                  id: r.id,
+                  ktaNumber: r.kta_number,
+                  nik: r.nik,
+                  name: r.name,
+                  city: r.city,
+                  district: r.district,
+                  subdistrict: r.subdistrict,
+                  position: r.position,
+                });
+              }
+            }
+          }
+
+          for (let i = 0; i < nikList.length; i += CHUNK_SIZE) {
+            const chunk = nikList.slice(i, i + CHUNK_SIZE);
+            const { data } = await sb
+              .from("party_members")
+              .select("id, kta_number, nik, name, city, district, subdistrict, position")
+              .in("nik", chunk);
+            if (data) {
+              for (const r of data) {
+                foundMap.set(r.id, {
+                  id: r.id,
+                  ktaNumber: r.kta_number,
+                  nik: r.nik,
+                  name: r.name,
+                  city: r.city,
+                  district: r.district,
+                  subdistrict: r.subdistrict,
+                  position: r.position,
+                });
+              }
+            }
+          }
+
+          matchedRows = Array.from(foundMap.values());
+        } catch (err) {
+          console.warn("Supabase duplicate check failed:", err);
+        }
+      }
+    }
+
+    if (matchedRows.length === 0) {
+      const local = loadLocalStore();
+      const members = local.partyMembers || [];
+      matchedRows = members
+        .filter(
+          (m) =>
+            (m.ktaNumber && ktaSet.has(m.ktaNumber.trim())) ||
+            (m.nik && nikSet.has(m.nik.trim()))
+        )
+        .map((m) => ({
+          id: m.id,
+          ktaNumber: m.ktaNumber,
+          nik: m.nik,
+          name: m.name,
+          city: m.city,
+          district: m.district,
+          subdistrict: m.subdistrict,
+          position: m.position,
+        }));
+    }
+
+    const byKta: Record<string, DuplicateMemberMatch> = {};
+    const byNik: Record<string, DuplicateMemberMatch> = {};
+    const duplicates: DuplicateMemberMatch[] = [];
+
+    for (const r of matchedRows) {
+      const ktaMatch = ktaSet.has(r.ktaNumber.trim());
+      const nikMatch = Boolean(r.nik && nikSet.has(r.nik.trim()));
+      const matchedBy: DuplicateMemberMatch["matchedBy"] =
+        ktaMatch && nikMatch ? "both" : ktaMatch ? "ktaNumber" : "nik";
+
+      const matchObj: DuplicateMemberMatch = {
+        ...r,
+        matchedBy,
+      };
+      duplicates.push(matchObj);
+      if (r.ktaNumber) byKta[r.ktaNumber.trim()] = matchObj;
+      if (r.nik) byNik[r.nik.trim()] = matchObj;
+    }
+
+    return { duplicates, byKta, byNik };
+  },
+
+  async batchUpsertPartyMembers(
+    items: NewPartyMember[],
+    options?: { duplicateStrategy?: "update" | "skip" }
+  ): Promise<{
+    inserted: number;
+    updated: number;
+    skipped: number;
+    duplicatesFound: number;
+    total: number;
+  }> {
+    const strategy = options?.duplicateStrategy || "update";
+
+    // 1. Deduplicate within the incoming batch itself (by ktaNumber & nik)
+    const seenBatchKta = new Set<string>();
+    const seenBatchNik = new Set<string>();
+    const uniqueBatch: NewPartyMember[] = [];
+    let inBatchSkipped = 0;
+
+    for (const rawItem of items) {
+      const kta = rawItem.ktaNumber.trim();
+      const nik = rawItem.nik?.trim() || undefined;
+      if (seenBatchKta.has(kta) || (nik && nik.length >= 10 && seenBatchNik.has(nik))) {
+        inBatchSkipped++;
+        continue;
+      }
+      seenBatchKta.add(kta);
+      if (nik && nik.length >= 10) seenBatchNik.add(nik);
+      uniqueBatch.push({
+        ...rawItem,
+        ktaNumber: kta,
+        nik,
+      });
+    }
+
+    // 2. Check existing records in database in a single batched lookup
+    const dupCheck = await this.checkDuplicatePartyMembers(uniqueBatch);
+    const duplicatesFound = dupCheck.duplicates.length;
+
+    const toInsert: NewPartyMember[] = [];
+    const toUpdate: Array<{ existingId: number; existingKta: string; item: NewPartyMember }> = [];
+    let skipped = inBatchSkipped;
+
+    for (const item of uniqueBatch) {
+      const match =
+        dupCheck.byKta[item.ktaNumber] ||
+        (item.nik ? dupCheck.byNik[item.nik] : undefined);
+
+      if (match) {
+        if (strategy === "skip") {
+          skipped++;
+        } else {
+          toUpdate.push({
+            existingId: match.id,
+            existingKta: match.ktaNumber,
+            item: {
+              ...item,
+              // Preserve existing ktaNumber if matched by NIK so we update the existing person instead of creating a second row
+              ktaNumber: match.ktaNumber,
+            },
+          });
+        }
+      } else {
+        toInsert.push(item);
+      }
+    }
+
+    invalidateMemberStatsCache();
+
+    const isPg = await checkPg();
+    if (isPg && db) {
+      try {
+        if (toInsert.length > 0) {
+          const CHUNK = 200;
+          for (let i = 0; i < toInsert.length; i += CHUNK) {
+            await db.insert(partyMembers).values(toInsert.slice(i, i + CHUNK));
           }
         }
-        return { inserted, updated, total: items.length };
+        for (const u of toUpdate) {
+          await db
+            .update(partyMembers)
+            .set({ ...u.item, updatedAt: new Date() })
+            .where(eq(partyMembers.id, u.existingId));
+        }
+        return {
+          inserted: toInsert.length,
+          updated: toUpdate.length,
+          skipped,
+          duplicatesFound,
+          total: items.length,
+        };
       } catch (err) {
-        console.warn("Postgres batchUpsert failed, saving to local store:", err);
+        console.warn("Postgres batchUpsert failed, saving to Supabase/local store:", err);
       }
     }
 
     const sb = getSupabaseAdmin();
     if (sb) {
       try {
-        const rows = items.map((item) => ({
-          kta_number: item.ktaNumber,
-          source_id: item.sourceId || null,
-          name: item.name,
-          nik: item.nik || null,
-          gender: item.gender || null,
-          birth_place: item.birthPlace || null,
-          birth_date: item.birthDate ? String(item.birthDate) : null,
-          marital_status: item.maritalStatus || null,
-          nationality: item.nationality || "Indonesia",
-          job: item.job || null,
-          email: item.email || null,
-          is_email_verified: item.isEmailVerified ?? false,
-          phone: item.phone || null,
-          province: item.province || "KALIMANTAN BARAT",
-          city: item.city || "KOTA PONTIANAK",
-          district: item.district || null,
-          subdistrict: item.subdistrict || null,
-          address: item.address || null,
-          postal_code: item.postalCode || null,
-          position: item.position || "regular",
-          membership_status: item.membershipStatus || "Aktif",
-          org_verification_status: item.orgVerificationStatus || "Belum Terverifikasi",
-          dpp_validation_status: item.dppValidationStatus || "Belum Divalidasi DPP",
-          dpp_decision_date: item.dppDecisionDate ? new Date(item.dppDecisionDate).toISOString() : null,
-          kpu_status_change_date: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate).toISOString() : null,
-          updated_at: new Date().toISOString(),
-        }));
-        const { error } = await sb.from("party_members").upsert(rows, { onConflict: "kta_number" });
-        if (!error) {
-          return { inserted: items.length, updated: 0, total: items.length };
+        const allWriteItems = [...toInsert, ...toUpdate.map((u) => u.item)];
+        if (allWriteItems.length > 0) {
+          const rows = allWriteItems.map((item) => ({
+            kta_number: item.ktaNumber,
+            source_id: item.sourceId || null,
+            name: item.name,
+            nik: item.nik || null,
+            gender: item.gender || null,
+            birth_place: item.birthPlace || null,
+            birth_date: item.birthDate ? String(item.birthDate) : null,
+            marital_status: item.maritalStatus || null,
+            nationality: item.nationality || "Indonesia",
+            job: item.job || null,
+            email: item.email || null,
+            is_email_verified: item.isEmailVerified ?? false,
+            phone: item.phone || null,
+            province: item.province || "KALIMANTAN BARAT",
+            city: item.city || "KOTA PONTIANAK",
+            district: item.district || null,
+            subdistrict: item.subdistrict || null,
+            address: item.address || null,
+            postal_code: item.postalCode || null,
+            position: item.position || "regular",
+            membership_status: item.membershipStatus || "Aktif",
+            org_verification_status: item.orgVerificationStatus || "Belum Terverifikasi",
+            dpp_validation_status: item.dppValidationStatus || "Belum Divalidasi DPP",
+            dpp_decision_date: item.dppDecisionDate ? new Date(item.dppDecisionDate).toISOString() : null,
+            kpu_status_change_date: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate).toISOString() : null,
+            updated_at: new Date().toISOString(),
+          }));
+
+          const CHUNK = 250;
+          for (let i = 0; i < rows.length; i += CHUNK) {
+            const { error } = await sb
+              .from("party_members")
+              .upsert(rows.slice(i, i + CHUNK), { onConflict: "kta_number" });
+            if (error) throw error;
+          }
         }
+        return {
+          inserted: toInsert.length,
+          updated: toUpdate.length,
+          skipped,
+          duplicatesFound,
+          total: items.length,
+        };
       } catch (err) {
         console.warn("Supabase batchUpsert failed:", err);
       }
@@ -2696,62 +2986,66 @@ export const DataService = {
     if (!local.partyMembers) local.partyMembers = [];
 
     const now = new Date();
-    for (const item of items) {
-      const idx = local.partyMembers.findIndex(
-        (m) => m.ktaNumber.trim() === item.ktaNumber.trim()
-      );
-
+    for (const u of toUpdate) {
+      const idx = local.partyMembers.findIndex((m) => m.id === u.existingId);
       if (idx !== -1) {
         local.partyMembers[idx] = {
           ...local.partyMembers[idx],
-          ...item,
+          ...u.item,
           updatedAt: now,
         } as PartyMember;
-        updated++;
-      } else {
-        const newId = local.partyMembers.length
-          ? Math.max(...local.partyMembers.map((m) => m.id)) + 1
-          : 1;
-        const newMember: PartyMember = {
-          id: newId,
-          sourceId: item.sourceId || null,
-          ktaNumber: item.ktaNumber,
-          name: item.name,
-          nik: item.nik || null,
-          gender: item.gender || null,
-          birthPlace: item.birthPlace || null,
-          birthDate: item.birthDate ? String(item.birthDate) : null,
-          maritalStatus: item.maritalStatus || null,
-          nationality: item.nationality || "Indonesia",
-          job: item.job || null,
-          email: item.email || null,
-          isEmailVerified: item.isEmailVerified ?? false,
-          phone: item.phone || null,
-          province: item.province || "KALIMANTAN BARAT",
-          city: item.city || "KOTA PONTIANAK",
-          district: item.district || null,
-          subdistrict: item.subdistrict || null,
-          address: item.address || null,
-          postalCode: item.postalCode || null,
-          position: item.position || "regular",
-          membershipStatus: item.membershipStatus || "Aktif",
-          orgVerificationStatus: item.orgVerificationStatus || "Belum Terverifikasi",
-          dppValidationStatus: item.dppValidationStatus || "Belum Divalidasi DPP",
-          dppDecisionDate: item.dppDecisionDate ? new Date(item.dppDecisionDate) : null,
-          kpuStatusChangeDate: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate) : null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        local.partyMembers.push(newMember);
-        inserted++;
       }
     }
 
+    for (const item of toInsert) {
+      const newId = local.partyMembers.length
+        ? Math.max(...local.partyMembers.map((m) => m.id)) + 1
+        : 1;
+      const newMember: PartyMember = {
+        id: newId,
+        sourceId: item.sourceId || null,
+        ktaNumber: item.ktaNumber,
+        name: item.name,
+        nik: item.nik || null,
+        gender: item.gender || null,
+        birthPlace: item.birthPlace || null,
+        birthDate: item.birthDate ? String(item.birthDate) : null,
+        maritalStatus: item.maritalStatus || null,
+        nationality: item.nationality || "Indonesia",
+        job: item.job || null,
+        email: item.email || null,
+        isEmailVerified: item.isEmailVerified ?? false,
+        phone: item.phone || null,
+        province: item.province || "KALIMANTAN BARAT",
+        city: item.city || "KOTA PONTIANAK",
+        district: item.district || null,
+        subdistrict: item.subdistrict || null,
+        address: item.address || null,
+        postalCode: item.postalCode || null,
+        position: item.position || "regular",
+        membershipStatus: item.membershipStatus || "Aktif",
+        orgVerificationStatus: item.orgVerificationStatus || "Belum Terverifikasi",
+        dppValidationStatus: item.dppValidationStatus || "Belum Divalidasi DPP",
+        dppDecisionDate: item.dppDecisionDate ? new Date(item.dppDecisionDate) : null,
+        kpuStatusChangeDate: item.kpuStatusChangeDate ? new Date(item.kpuStatusChangeDate) : null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      local.partyMembers.push(newMember);
+    }
+
     saveLocalStore(local);
-    return { inserted, updated, total: items.length };
+    return {
+      inserted: toInsert.length,
+      updated: toUpdate.length,
+      skipped,
+      duplicatesFound,
+      total: items.length,
+    };
   },
 
   async deletePartyMember(id: number): Promise<boolean> {
+    invalidateMemberStatsCache();
     const isPg = await checkPg();
     if (isPg && db) {
       try {

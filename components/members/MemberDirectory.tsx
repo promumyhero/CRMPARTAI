@@ -19,9 +19,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  UserPlus,
 } from "lucide-react";
 import type { PartyMember } from "@/lib/db/schema";
 import { MemberImportModal } from "./MemberImportModal";
+import { MemberCreateModal } from "./MemberCreateModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SkeletonCard, SkeletonRow } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
@@ -58,17 +60,23 @@ export function MemberDirectory() {
   const [position, setPosition] = useState("");
   const [gender, setGender] = useState("");
 
-  // Hierarchical Territorial Filters
-  const [province, setProvince] = useState("");
+  // Hierarchical Territorial Filters (Default Provinsi Kalimantan Barat)
+  const [province, setProvince] = useState("KALIMANTAN BARAT");
   const [city, setCity] = useState("");
   const [district, setDistrict] = useState("");
   const [subdistrict, setSubdistrict] = useState("");
 
   const [unmaskSensitive, setUnmaskSensitive] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [userProfile, setUserProfile] = useState<{ role: string; district?: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{
+    role: string;
+    province?: string | null;
+    city?: string | null;
+    district?: string | null;
+  } | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -78,13 +86,19 @@ export function MemberDirectory() {
 
   useEffect(() => {
     let isMounted = true;
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
         if (isMounted && d.authenticated && d.user) {
           setUserProfile(d.user);
-          if (d.user.district) {
-            setDistrict(d.user.district);
+          const norm = normalizeRole(d.user.role);
+          if (norm === "superadmin") {
+            // Administrator Utama (DPD Provinsi): Kelola penuh seluruh Provinsi Kalimantan Barat
+            setProvince(d.user.province || "KALIMANTAN BARAT");
+          } else {
+            if (d.user.province) setProvince(d.user.province);
+            if (d.user.city && norm === "admin_dpc") setCity(d.user.city);
+            if (d.user.district) setDistrict(d.user.district);
           }
         }
       })
@@ -549,15 +563,24 @@ export function MemberDirectory() {
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
 
-          {/* Import Excel (Only for users with create permission) */}
+          {/* Input Manual & Import Excel (Only for users with create permission) */}
           {canCreate && (
-            <button
-              onClick={() => setIsImportOpen(true)}
-              className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition flex items-center gap-1.5"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Import Excel / CSV</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Input Kader</span>
+              </button>
+              <button
+                onClick={() => setIsImportOpen(true)}
+                className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Import Excel / CSV</span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -809,7 +832,16 @@ export function MemberDirectory() {
         </div>
       </div>
 
-      {/* 6. Import Modal */}
+      {/* 6. Manual Create Modal (With Real-Time Duplicate Detection) */}
+      <MemberCreateModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSuccess={() => {
+          fetchMembers();
+        }}
+      />
+
+      {/* 7. Import Modal */}
       <MemberImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}

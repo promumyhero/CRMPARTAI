@@ -118,26 +118,22 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Item Form Local Draft State
-  const [itemDraft, setItemDraft] = useState<BudgetItemDraft | null>(null);
-
-  // Check draft on mount (deferred to avoid synchronous setState in effect)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const raw = localStorage.getItem(BUDGET_ITEM_DRAFT_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as BudgetItemDraft;
-          if (parsed && (parsed.itemName || parsed.unitPrice)) {
-            setItemDraft(parsed);
-          }
+  // Item Form Local Draft State (lazy-initialized on client)
+  const [itemDraft, setItemDraft] = useState<BudgetItemDraft | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(BUDGET_ITEM_DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as BudgetItemDraft;
+        if (parsed && (parsed.itemName || parsed.unitPrice)) {
+          return parsed;
         }
-      } catch {
-        // ignore
       }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
 
   // Debounced auto-save item draft when modal is open and user is adding a new item
   useEffect(() => {
