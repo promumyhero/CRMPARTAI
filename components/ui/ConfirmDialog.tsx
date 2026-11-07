@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, Trash2, Loader2, X } from "lucide-react";
 
 interface ConfirmDialogProps {
@@ -45,12 +46,12 @@ export function ConfirmDialog({
     };
   }, [isOpen, isLoading, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       onClick={() => !isLoading && onClose()}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overscroll-contain"
+      className="fixed inset-0 z-9995 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 overscroll-contain"
     >
       <div
         role="alertdialog"
@@ -131,6 +132,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Upload, AlertTriangle, CheckCircle2, XCircle, FileSpreadsheet, X, Loader2, ShieldAlert } from "lucide-react";
 import { parseMemberExcelBuffer, type ParseExcelResult } from "@/lib/excel/member-parser";
 import type { DuplicateMemberMatch } from "@/lib/services/data-store";
@@ -21,7 +22,7 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
   const analyzeFileBuffer = async (selectedFile: File) => {
     setFile(selectedFile);
@@ -147,16 +148,16 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overscroll-contain">
+  return createPortal(
+    <div className="fixed inset-0 z-9990 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overscroll-contain">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="import-modal-title"
-        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200"
+        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden border border-slate-200"
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
               <FileSpreadsheet className="w-5 h-5" aria-hidden="true" />
@@ -441,6 +442,7 @@ export function MemberImportModal({ isOpen, onClose, onSuccess }: MemberImportMo
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

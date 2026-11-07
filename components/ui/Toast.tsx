@@ -175,8 +175,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <Toaster
         position="top-right"
         closeButton={false}
-        expand={false}
-        gap={8}
+        expand={true}
+        visibleToasts={4}
+        offset={72}
+        gap={10}
+        style={{ zIndex: 99999 }}
       />
     </ToastContext.Provider>
   );
