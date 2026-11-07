@@ -54,4 +54,13 @@ next-env.d.ts
 Thumbs.db
 *.log
 
-.vercel
+# Temporary AI specs, plans, & scratchpads
+spec.md
+specs/
+plan.md
+plans/
+todo.md
+todos/
+scratch/
+scratch.*
+*.scratch.*
