@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { SkeletonDocumentCard } from "@/components/ui/Skeleton";
 import type { ActivityItem } from "@/components/activities/ActivityPlanner";
 import type { BudgetItemData } from "@/components/budget/BudgetPlanner";
 
@@ -390,12 +391,13 @@ export function DocumentHistory({
 
       {/* Document List View */}
       {loading ? (
-        <div className="bg-white p-12 rounded-xl border border-slate-200 flex flex-col items-center justify-center text-slate-400 space-y-2">
-          <RefreshCw className="w-6 h-6 animate-spin text-blue-500" aria-hidden="true" />
-          <p className="text-xs font-medium">Memuat riwayat dokumen dari cloud database…</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonDocumentCard key={i} />
+          ))}
         </div>
       ) : filteredDocs.length === 0 ? (
-        <div className="bg-white p-12 rounded-xl border border-dashed border-slate-300 text-center space-y-3">
+        <div className="bg-white p-12 rounded-xl border border-dashed border-slate-300 text-center space-y-3 subview-transition-enter">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
             <FileText className="w-6 h-6" />
           </div>
@@ -423,7 +425,7 @@ export function DocumentHistory({
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 subview-transition-enter">
             {paginatedDocs.map((doc) => {
             const actTitle = doc.activityId ? activityMap.get(doc.activityId) : null;
             const hasRab = Boolean(doc.contentPayload?.includeBudgetTable && (doc.contentPayload?.budgetItems?.length ?? 0) > 0);

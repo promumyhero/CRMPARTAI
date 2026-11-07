@@ -50,7 +50,18 @@ interface StatsData {
   }>;
 }
 
-export function MemberDirectory() {
+interface MemberDirectoryUser {
+  role: string;
+  province?: string | null;
+  city?: string | null;
+  district?: string | null;
+}
+
+interface MemberDirectoryProps {
+  initialUser?: MemberDirectoryUser | null;
+}
+
+export function MemberDirectory({ initialUser = null }: MemberDirectoryProps) {
   const [members, setMembers] = useState<PartyMember[]>([]);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,9 +72,22 @@ export function MemberDirectory() {
   const [gender, setGender] = useState("");
 
   // Hierarchical Territorial Filters (Default Provinsi Kalimantan Barat)
-  const [province, setProvince] = useState("KALIMANTAN BARAT");
-  const [city, setCity] = useState("");
-  const [district, setDistrict] = useState("");
+  const [province, setProvince] = useState(() => {
+    if (initialUser?.province) return initialUser.province;
+    return "KALIMANTAN BARAT";
+  });
+  const [city, setCity] = useState(() => {
+    if (initialUser && normalizeRole(initialUser.role) === "admin_dpc" && initialUser.city) {
+      return initialUser.city;
+    }
+    return "";
+  });
+  const [district, setDistrict] = useState(() => {
+    if (initialUser && normalizeRole(initialUser.role) !== "superadmin" && initialUser.district) {
+      return initialUser.district;
+    }
+    return "";
+  });
   const [subdistrict, setSubdistrict] = useState("");
 
   const [unmaskSensitive, setUnmaskSensitive] = useState(false);
@@ -71,12 +95,7 @@ export function MemberDirectory() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [targetDeleteMember, setTargetDeleteMember] = useState<PartyMember | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [userProfile, setUserProfile] = useState<{
-    role: string;
-    province?: string | null;
-    city?: string | null;
-    district?: string | null;
-  } | null>(null);
+  const [userProfile, setUserProfile] = useState<MemberDirectoryUser | null>(initialUser);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,6 +104,7 @@ export function MemberDirectory() {
   const { showDeleteToast, showToast } = useToast();
 
   useEffect(() => {
+    if (initialUser) return;
     let isMounted = true;
     fetch("/api/auth/me", { cache: "no-store" })
       .then((r) => r.json())
@@ -106,7 +126,7 @@ export function MemberDirectory() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialUser]);
 
   const normRole = userProfile ? normalizeRole(userProfile.role) : "viewer";
   const canDelete = hasPermission(normRole, "members:delete");
@@ -655,7 +675,11 @@ export function MemberDirectory() {
                 <th className="py-3 px-4 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody
+              className={`divide-y divide-slate-100 text-slate-700 transition-opacity duration-150 ${
+                loading && members.length > 0 ? "opacity-60" : "opacity-100"
+              }`}
+            >
               {loading && members.length === 0 ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <SkeletonRow key={i} cols={8} />

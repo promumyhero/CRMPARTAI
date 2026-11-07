@@ -425,7 +425,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
       </div>
 
       {budgetViewMode === "history" ? (
-        <div className="space-y-4 sm:space-y-6">
+        <div key="history" className="space-y-4 sm:space-y-6 subview-transition-enter">
           {/* Header Banner */}
           <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -604,7 +604,7 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         </div>
       ) : (
-        <>
+        <div key="detail" className="space-y-4 sm:space-y-6 subview-transition-enter">
           {/* Top Controller: Select Activity & Action */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
             <div>
@@ -931,8 +931,8 @@ export function BudgetPlanner({ initialActivityId, onSelectLetter }: BudgetPlann
           </div>
         )}
       </div>
-    </>
-  )}
+        </div>
+      )}
 
       {/* Modal Add / Edit Budget Item */}
       <Modal

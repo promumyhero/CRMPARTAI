@@ -13,7 +13,7 @@ export function Skeleton({
   return (
     <div
       className={cn(
-        "animate-pulse rounded-xl bg-slate-200/70",
+        "skeleton-shimmer rounded-xl bg-slate-200/70",
         className
       )}
       {...props}
@@ -252,7 +252,7 @@ export function UserManagerSkeleton() {
       </div>
 
       {/* 3. User Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/80 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
@@ -275,6 +275,221 @@ export function UserManagerSkeleton() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Specialized skeleton card for Document History items
+export function SkeletonDocumentCard() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between space-y-4">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <Skeleton className="h-5 w-28 rounded" />
+          <Skeleton className="h-3.5 w-20 rounded" />
+        </div>
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-40 rounded" />
+          <Skeleton className="h-4 w-full rounded" />
+          <Skeleton className="h-4 w-3/4 rounded" />
+        </div>
+        <div className="pt-1 space-y-1.5">
+          <Skeleton className="h-3.5 w-48 rounded" />
+          <Skeleton className="h-3.5 w-36 rounded" />
+        </div>
+      </div>
+      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+        <Skeleton className="h-8 flex-1 rounded-lg" />
+        <Skeleton className="h-8 w-24 rounded-lg" />
+        <Skeleton className="h-8 w-8 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+// Specialized skeleton card for Template Customizer letterhead profiles
+export function SkeletonTemplateCard() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-1.5 flex-1">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-5 w-14 rounded-md" />
+          </div>
+          <Skeleton className="h-5 w-56 rounded" />
+        </div>
+        <Skeleton className="h-8 w-20 rounded-lg" />
+      </div>
+      <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 space-y-2">
+        <Skeleton className="h-4 w-3/4 mx-auto rounded" />
+        <Skeleton className="h-3 w-1/2 mx-auto rounded" />
+        <Skeleton className="h-2.5 w-5/6 mx-auto rounded" />
+      </div>
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+        <Skeleton className="h-3.5 w-32 rounded" />
+        <Skeleton className="h-3.5 w-28 rounded" />
+      </div>
+    </div>
+  );
+}
+
+// Exact-fit skeleton for Activity & Event Planner page
+export function ActivityPlannerSkeleton() {
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Top Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-52" />
+            <Skeleton className="h-5 w-24 rounded-full" />
+          </div>
+          <Skeleton className="h-3.5 w-72 sm:w-96" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-28 rounded-lg" />
+          <Skeleton className="h-9 w-36 rounded-lg" />
+        </div>
+      </div>
+
+      {/* 4 Quick Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+
+      {/* Calendar Skeleton */}
+      <SkeletonCalendar />
+    </div>
+  );
+}
+
+// Exact-fit skeleton for Member Directory page
+export function MemberDirectorySkeleton() {
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* 1. Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+
+      {/* 2. Territorial Filter Card */}
+      <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3.5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <Skeleton className="w-8 h-8 rounded-xl" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-3 w-80 sm:w-96" />
+            </div>
+          </div>
+          <Skeleton className="h-6 w-24 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <Skeleton className="h-9 w-full rounded-xl" />
+          <Skeleton className="h-9 w-full rounded-xl" />
+          <Skeleton className="h-9 w-full rounded-xl" />
+          <Skeleton className="h-9 w-full rounded-xl" />
+        </div>
+      </div>
+
+      {/* 3. Search & Action Bar */}
+      <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <Skeleton className="h-9 flex-1 rounded-xl" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Skeleton className="h-9 w-32 rounded-xl" />
+          <Skeleton className="h-9 w-32 rounded-xl" />
+          <Skeleton className="h-9 w-28 rounded-xl" />
+          <Skeleton className="h-9 w-36 rounded-xl" />
+        </div>
+      </div>
+
+      {/* 4. Table Skeleton */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <th key={i} className="py-3 px-4">
+                    <Skeleton className="h-3.5 w-20" />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonRow key={i} cols={8} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Exact-fit skeleton for Template Customizer page
+export function TemplateCustomizerSkeleton() {
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-56" />
+          <Skeleton className="h-3.5 w-80 sm:w-96" />
+        </div>
+        <Skeleton className="h-9 w-40 rounded-lg" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonTemplateCard key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Full Application Shell Skeleton (used during initial session verification to prevent dark/light flash)
+export function AppShellSkeleton() {
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Top Navbar Skeleton */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16 gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-sm shadow-xs">
+                C
+              </div>
+              <div className="space-y-1">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-2.5 w-36 hidden md:block" />
+              </div>
+            </div>
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
+              <Skeleton className="h-7 w-28 rounded-lg bg-white" />
+              <Skeleton className="h-7 w-28 rounded-lg" />
+              <Skeleton className="h-7 w-24 rounded-lg" />
+              <Skeleton className="h-7 w-32 rounded-lg" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-7 w-24 rounded-full" />
+              <Skeleton className="h-8 w-28 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Skeleton */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 lg:py-8">
+        <ActivityPlannerSkeleton />
+      </main>
     </div>
   );
 }

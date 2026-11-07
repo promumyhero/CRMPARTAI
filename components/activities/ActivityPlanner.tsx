@@ -629,7 +629,7 @@ export function ActivityPlanner({
 
       {/* View Mode 1: Interactive Calendar View */}
       {viewMode === "calendar" && (
-        <div className="space-y-4">
+        <div key="calendar" className="space-y-4 subview-transition-enter">
           {loading ? (
             <SkeletonCalendar />
           ) : (
@@ -984,7 +984,7 @@ export function ActivityPlanner({
 
       {/* View Mode 2: Responsive Card List View */}
       {viewMode === "list" && (
-        <>
+        <div key="list" className="subview-transition-enter">
           {loading ? (
             <div className="grid grid-cols-1 gap-3 sm:gap-4">
               <SkeletonActivityCard />
@@ -1132,7 +1132,7 @@ export function ActivityPlanner({
               })}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Modal Add / Edit Activity */}

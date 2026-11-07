@@ -78,20 +78,13 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
   const [docNumber, setDocNumber] = useState("042/PAN-TRANS/X/2026");
   const [attachment, setAttachment] = useState("1 (Satu) Berkas");
   const [subject, setSubject] = useState("Permohonan Pencairan Anggaran Workshop Transformasi Digital");
-  const [dateStr, setDateStr] = useState<string>("27 Oktober 2026");
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDateStr(
-        new Date().toLocaleDateString("id-ID", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })
-      );
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
+  const [dateStr, setDateStr] = useState<string>(() =>
+    new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+  );
   const [city, setCity] = useState("Jakarta");
 
   const [recipientName, setRecipientName] = useState("Kepala Bagian Keuangan & Perencanaan");
@@ -121,28 +114,24 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
   const [exporting, setExporting] = useState<boolean>(false);
   const { showToast } = useToast();
 
-  // Local Draft Storage State
-  const [draftInfo, setDraftInfo] = useState<{ savedAt: string; data: DocumentDraft } | null>(null);
+  // Local Draft Storage State (lazy-initialized on client)
+  const [draftInfo, setDraftInfo] = useState<{ savedAt: string; data: DocumentDraft } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as DocumentDraft;
+        if (parsed && parsed.savedAt) {
+          return { savedAt: parsed.savedAt, data: parsed };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const isInitialMount = useRef(true);
-
-  // Check existing draft on initial mount (deferred to avoid synchronous setState in effect)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as DocumentDraft;
-          if (parsed && parsed.savedAt) {
-            setDraftInfo({ savedAt: parsed.savedAt, data: parsed });
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Debounced auto-save to localStorage on field edits
   useEffect(() => {
@@ -603,13 +592,15 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
       </div>
 
       {viewMode === "history" ? (
-        <DocumentHistory
-          onOpenDocument={handleOpenDocumentFromHistory}
-          onCreateNew={() => setViewMode("generator")}
-          activities={activities}
-        />
+        <div key="history" className="subview-transition-enter">
+          <DocumentHistory
+            onOpenDocument={handleOpenDocumentFromHistory}
+            onCreateNew={() => setViewMode("generator")}
+            activities={activities}
+          />
+        </div>
       ) : (
-        <>
+        <div key="generator" className="space-y-4 sm:space-y-6 subview-transition-enter">
           {/* Top Banner & Export Action */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200">
             <div>
@@ -1208,8 +1199,8 @@ export function DocumentGenerator({ initialActivityId }: DocumentGeneratorProps)
           </div>
         </div>
       </div>
-    </>
-  )}
+        </div>
+      )}
     </div>
   );
 }

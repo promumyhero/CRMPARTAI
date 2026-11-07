@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Sliders, Plus, Edit2 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { SkeletonTemplateCard } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
 export interface TemplateData {
@@ -183,9 +184,13 @@ export function TemplateCustomizer() {
 
       {/* Templates Grid Cards (1 col mobile, 2 cols tablet/desktop) */}
       {loading ? (
-        <div className="p-12 text-center text-slate-400 text-xs">Memuat daftar template…</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonTemplateCard key={i} />
+          ))}
+        </div>
       ) : templates.length === 0 ? (
-        <div className="bg-white p-8 sm:p-12 text-center rounded-xl border border-slate-200">
+        <div className="bg-white p-8 sm:p-12 text-center rounded-xl border border-slate-200 subview-transition-enter">
           <Sliders className="w-10 h-10 text-slate-300 mx-auto mb-2" aria-hidden="true" />
           <p className="text-sm font-semibold text-slate-700">Belum ada template kustom</p>
           <p className="text-xs text-slate-400 mt-1">
@@ -193,7 +198,7 @@ export function TemplateCustomizer() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 subview-transition-enter">
           {templates.map((tmpl) => (
             <div
               key={tmpl.id}

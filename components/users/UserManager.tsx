@@ -28,6 +28,7 @@ import {
   Users,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { SkeletonRow } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { ROLE_CONFIGS, normalizeRole, type AppRole } from "@/lib/auth/roles";
 import { WEST_KALIMANTAN_CITIES, PONTIANAK_DISTRICTS } from "@/lib/constants/territories";
@@ -925,12 +926,7 @@ export function UserManager() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" aria-hidden="true" />
-                    Memuat daftar pengguna sistem…
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={6} />)
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
